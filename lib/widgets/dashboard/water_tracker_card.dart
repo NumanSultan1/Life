@@ -1,7 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:hive_flutter/hive_flutter.dart';
+import 'package:provider/provider.dart';
+import '../../providers/task_provider.dart';
 import '../../services/hive_service.dart';
-import '../../theme/app_colors.dart';
 import '../common/custom_card.dart';
 
 class WaterTrackerCard extends StatefulWidget {
@@ -18,16 +19,21 @@ class _WaterTrackerCardState extends State<WaterTrackerCard> {
   @override
   void initState() {
     super.initState();
+    final user = HiveService.getCurrentUser();
     final box = Hive.box(HiveService.settingsBox);
-    _currentGlasses = box.get('waterIntake', defaultValue: 0);
+    _currentGlasses = box.get('${user}_waterIntake', defaultValue: 0);
   }
 
   void _updateWater(int count) {
+    final user = HiveService.getCurrentUser();
     setState(() {
       _currentGlasses = count.clamp(0, _goalGlasses);
     });
     final box = Hive.box(HiveService.settingsBox);
-    box.put('waterIntake', _currentGlasses);
+    box.put('${user}_waterIntake', _currentGlasses);
+
+    // Synchronize water drink task in TaskProvider
+    Provider.of<TaskProvider>(context, listen: false).syncWaterTask(_currentGlasses);
   }
 
   @override

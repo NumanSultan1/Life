@@ -21,19 +21,36 @@ class _GoalsTabState extends State<GoalsTab> {
   }
 
   void _loadGoals() {
+    final user = HiveService.getCurrentUser();
     setState(() {
-      _goals = HiveService.getGoals();
+      _goals = HiveService.getGoals(user);
     });
   }
 
   Future<void> _updateProgress(Goal goal, double newProgress) async {
-    final updatedGoal = goal.copyWith(progress: double.parse(newProgress.clamp(0.0, 1.0).toStringAsFixed(4)));
-    await HiveService.saveGoal(updatedGoal);
+    final user = HiveService.getCurrentUser();
+    final clampedProgress = double.parse(newProgress.clamp(0.0, 1.0).toStringAsFixed(4));
+
+    final oldProgress = goal.progress;
+    final updatedGoal = goal.copyWith(progress: clampedProgress);
+    await HiveService.saveGoal(updatedGoal, user);
+
+    // Award 100 XP if the goal has just been completed!
+    if (oldProgress < 1.0 && clampedProgress >= 1.0) {
+      await HiveService.addXp(100);
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Goal Completed! Earned +100 XP! 🏆')),
+        );
+      }
+    }
+
     _loadGoals();
   }
 
   Future<void> _deleteGoal(String id) async {
-    await HiveService.deleteGoal(id);
+    final user = HiveService.getCurrentUser();
+    await HiveService.deleteGoal(id, user);
     _loadGoals();
   }
 
@@ -122,6 +139,7 @@ class _GoalsTabState extends State<GoalsTab> {
                 child: ElevatedButton(
                   onPressed: () async {
                     if (titleController.text.trim().isNotEmpty) {
+                      final user = HiveService.getCurrentUser();
                       final newGoal = Goal(
                         id: DateTime.now().millisecondsSinceEpoch.toString(),
                         title: titleController.text.trim(),
@@ -130,7 +148,7 @@ class _GoalsTabState extends State<GoalsTab> {
                         targetDate: DateTime.now().add(const Duration(days: 30)),
                         progress: 0.0,
                       );
-                      await HiveService.saveGoal(newGoal);
+                      await HiveService.saveGoal(newGoal, user);
                       _loadGoals();
                       if (context.mounted) Navigator.pop(context);
                     }

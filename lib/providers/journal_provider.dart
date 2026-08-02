@@ -21,7 +21,8 @@ class JournalProvider extends ChangeNotifier {
   }
 
   void loadEntries() {
-    _entries = HiveService.getJournalEntries();
+    final user = HiveService.getCurrentUser();
+    _entries = HiveService.getJournalEntries(user);
     notifyListeners();
   }
 
@@ -36,24 +37,31 @@ class JournalProvider extends ChangeNotifier {
   }
 
   Future<void> addEntry(JournalEntry entry) async {
+    final user = HiveService.getCurrentUser();
     _entries.insert(0, entry);
-    await HiveService.saveJournalEntry(entry);
+    await HiveService.saveJournalEntry(entry, user);
+
+    // Award 30 XP for writing a journal entry
+    await HiveService.addXp(30);
+
     notifyListeners();
   }
 
   Future<void> toggleFavorite(String id) async {
+    final user = HiveService.getCurrentUser();
     final index = _entries.indexWhere((e) => e.id == id);
     if (index != -1) {
       final updated = _entries[index].copyWith(isFavorite: !_entries[index].isFavorite);
       _entries[index] = updated;
-      await HiveService.saveJournalEntry(updated);
+      await HiveService.saveJournalEntry(updated, user);
       notifyListeners();
     }
   }
 
   Future<void> deleteEntry(String id) async {
+    final user = HiveService.getCurrentUser();
     _entries.removeWhere((e) => e.id == id);
-    await HiveService.deleteJournalEntry(id);
+    await HiveService.deleteJournalEntry(id, user);
     notifyListeners();
   }
 }

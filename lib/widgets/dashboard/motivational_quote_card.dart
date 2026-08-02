@@ -1,5 +1,4 @@
 import 'package:flutter/material.dart';
-import '../common/custom_card.dart';
 
 class MotivationalQuoteCard extends StatelessWidget {
   const MotivationalQuoteCard({super.key});

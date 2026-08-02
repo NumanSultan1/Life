@@ -33,67 +33,151 @@ class HiveService {
     }
   }
 
+  // --- Current User Helpers ---
+  static String getCurrentUser() {
+    final box = Hive.box(settingsBox);
+    return box.get('currentUser', defaultValue: 'User') as String;
+  }
+
+  static Future<void> setCurrentUser(String userName) async {
+    final box = Hive.box(settingsBox);
+    await box.put('currentUser', userName);
+    await initUserIfNeeded(userName);
+  }
+
+  static Future<void> initUserIfNeeded(String userName) async {
+    if (userName.isEmpty) return;
+    final box = Hive.box(settingsBox);
+    if (box.get('${userName}_level') == null) {
+      await box.put('${userName}_level', 1);
+      await box.put('${userName}_xp', 0);
+      await box.put('${userName}_moodToday', '😊');
+      await box.put('${userName}_waterIntake', 0);
+      await box.put('${userName}_studyMinutesToday', 0);
+      await box.put('${userName}_streakFreezers', 2);
+      await box.put('${userName}_streakRestoreTokens', 2);
+      await box.put('${userName}_lastResetDate', '');
+    }
+  }
+
+  // --- XP Gamification Helpers ---
+  static Future<void> addXp(int xpAmount) async {
+    final user = getCurrentUser();
+    if (user.isEmpty) return;
+    final box = Hive.box(settingsBox);
+    int currentXp = box.get('${user}_xp', defaultValue: 0) as int;
+    int currentLevel = box.get('${user}_level', defaultValue: 1) as int;
+
+    currentXp += xpAmount;
+    int xpNeeded = currentLevel * 100;
+
+    while (currentXp >= xpNeeded) {
+      currentXp -= xpNeeded;
+      currentLevel += 1;
+      xpNeeded = currentLevel * 100;
+    }
+
+    await box.put('${user}_xp', currentXp);
+    await box.put('${user}_level', currentLevel);
+  }
+
   // --- CRUD Task Helpers ---
-  static List<Task> getTasks() {
+  static List<Task> getTasks(String userName) {
     final box = Hive.box(tasksBox);
-    return box.values.map((e) => Task.fromMap(Map<String, dynamic>.from(e))).toList();
+    final list = <Task>[];
+    for (var key in box.keys) {
+      if (key.toString().startsWith('${userName}_')) {
+        final val = box.get(key);
+        if (val != null) {
+          list.add(Task.fromMap(Map<String, dynamic>.from(val)));
+        }
+      }
+    }
+    return list;
   }
 
-  static Future<void> saveTask(Task task) async {
+  static Future<void> saveTask(Task task, String userName) async {
     final box = Hive.box(tasksBox);
-    await box.put(task.id, task.toMap());
+    await box.put('${userName}_${task.id}', task.toMap());
   }
 
-  static Future<void> deleteTask(String id) async {
+  static Future<void> deleteTask(String id, String userName) async {
     final box = Hive.box(tasksBox);
-    await box.delete(id);
+    await box.delete('${userName}_$id');
   }
 
   // --- CRUD Habit Helpers ---
-  static List<Habit> getHabits() {
+  static List<Habit> getHabits(String userName) {
     final box = Hive.box(habitsBox);
-    return box.values.map((e) => Habit.fromMap(Map<String, dynamic>.from(e))).toList();
+    final list = <Habit>[];
+    for (var key in box.keys) {
+      if (key.toString().startsWith('${userName}_')) {
+        final val = box.get(key);
+        if (val != null) {
+          list.add(Habit.fromMap(Map<String, dynamic>.from(val)));
+        }
+      }
+    }
+    return list;
   }
 
-  static Future<void> saveHabit(Habit habit) async {
+  static Future<void> saveHabit(Habit habit, String userName) async {
     final box = Hive.box(habitsBox);
-    await box.put(habit.id, habit.toMap());
+    await box.put('${userName}_${habit.id}', habit.toMap());
   }
 
-  static Future<void> deleteHabit(String id) async {
+  static Future<void> deleteHabit(String id, String userName) async {
     final box = Hive.box(habitsBox);
-    await box.delete(id);
+    await box.delete('${userName}_$id');
   }
 
   // --- CRUD Journal Helpers ---
-  static List<JournalEntry> getJournalEntries() {
+  static List<JournalEntry> getJournalEntries(String userName) {
     final box = Hive.box(journalBox);
-    return box.values.map((e) => JournalEntry.fromMap(Map<String, dynamic>.from(e))).toList();
+    final list = <JournalEntry>[];
+    for (var key in box.keys) {
+      if (key.toString().startsWith('${userName}_')) {
+        final val = box.get(key);
+        if (val != null) {
+          list.add(JournalEntry.fromMap(Map<String, dynamic>.from(val)));
+        }
+      }
+    }
+    return list;
   }
 
-  static Future<void> saveJournalEntry(JournalEntry entry) async {
+  static Future<void> saveJournalEntry(JournalEntry entry, String userName) async {
     final box = Hive.box(journalBox);
-    await box.put(entry.id, entry.toMap());
+    await box.put('${userName}_${entry.id}', entry.toMap());
   }
 
-  static Future<void> deleteJournalEntry(String id) async {
+  static Future<void> deleteJournalEntry(String id, String userName) async {
     final box = Hive.box(journalBox);
-    await box.delete(id);
+    await box.delete('${userName}_$id');
   }
 
   // --- CRUD Goal Helpers ---
-  static List<Goal> getGoals() {
+  static List<Goal> getGoals(String userName) {
     final box = Hive.box(goalsBox);
-    return box.values.map((e) => Goal.fromMap(Map<String, dynamic>.from(e))).toList();
+    final list = <Goal>[];
+    for (var key in box.keys) {
+      if (key.toString().startsWith('${userName}_')) {
+        final val = box.get(key);
+        if (val != null) {
+          list.add(Goal.fromMap(Map<String, dynamic>.from(val)));
+        }
+      }
+    }
+    return list;
   }
 
-  static Future<void> saveGoal(Goal goal) async {
+  static Future<void> saveGoal(Goal goal, String userName) async {
     final box = Hive.box(goalsBox);
-    await box.put(goal.id, goal.toMap());
+    await box.put('${userName}_${goal.id}', goal.toMap());
   }
 
-  static Future<void> deleteGoal(String id) async {
+  static Future<void> deleteGoal(String id, String userName) async {
     final box = Hive.box(goalsBox);
-    await box.delete(id);
+    await box.delete('${userName}_$id');
   }
 }

@@ -1,3 +1,4 @@
+import 'dart:math';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../../providers/journal_provider.dart';
@@ -12,6 +13,15 @@ class JournalTab extends StatelessWidget {
     final titleController = TextEditingController();
     final contentController = TextEditingController();
     String mood = '😊';
+
+    final prompts = [
+      "What is one thing that made you smile today? 😊",
+      "What was the biggest challenge you faced today, and how did you handle it? 💪",
+      "What are three things you are extremely grateful for today? ✨",
+      "How did you move closer to your long-term goals today? 🎯",
+      "Describe a moment from today that you want to remember forever. 📖",
+      "What is one thing you can do tomorrow to make it an amazing day? 🌟"
+    ];
 
     showModalBottomSheet(
       context: context,
@@ -31,9 +41,24 @@ class JournalTab extends StatelessWidget {
                 mainAxisSize: MainAxisSize.min,
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Text(
-                    'Write Journal Entry',
-                    style: Theme.of(context).textTheme.titleLarge?.copyWith(fontWeight: FontWeight.bold),
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                    children: [
+                      Text(
+                        'Write Journal Entry',
+                        style: Theme.of(context).textTheme.titleLarge?.copyWith(fontWeight: FontWeight.bold),
+                      ),
+                      TextButton.icon(
+                        icon: const Icon(Icons.lightbulb_rounded, color: Colors.amber, size: 18),
+                        label: const Text('Inspire Me', style: TextStyle(color: Colors.amber, fontWeight: FontWeight.bold, fontSize: 12)),
+                        onPressed: () {
+                          final randomPrompt = prompts[Random().nextInt(prompts.length)];
+                          setStateModal(() {
+                            contentController.text = "$randomPrompt\n\n";
+                          });
+                        },
+                      ),
+                    ],
                   ),
                   const SizedBox(height: 16),
                   TextField(
@@ -49,6 +74,7 @@ class JournalTab extends StatelessWidget {
                     maxLines: 4,
                     decoration: InputDecoration(
                       labelText: 'Reflections & Thoughts...',
+                      alignLabelWithHint: true,
                       border: OutlineInputBorder(borderRadius: BorderRadius.circular(14)),
                     ),
                   ),

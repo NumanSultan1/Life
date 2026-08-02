@@ -13,7 +13,9 @@ class StatisticsScreen extends StatelessWidget {
     final taskProvider = Provider.of<TaskProvider>(context);
     final habitProvider = Provider.of<HabitProvider>(context);
     final journalProvider = Provider.of<JournalProvider>(context);
-    final goals = HiveService.getGoals();
+
+    final user = HiveService.getCurrentUser();
+    final goals = HiveService.getGoals(user);
 
     final taskRate = taskProvider.totalCount == 0
         ? 0

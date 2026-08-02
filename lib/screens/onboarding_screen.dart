@@ -14,21 +14,21 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
 
   final List<Map<String, dynamic>> _pages = [
     {
-      'title': 'All-in-One Life Hub',
-      'description': 'Seamlessly combine Tasks, Habits, Journaling, and Focus Timers into one single clean dashboard.',
-      'icon': Icons.space_dashboard_rounded,
-      'color': const Color(0xFF5B6CFF),
+      'title': 'Unleash Your Potential',
+      'description': 'Propel your daily performance! Seamlessly combine Tasks, Habits, and Reflection into your personal power hub.',
+      'icon': Icons.bolt_rounded,
+      'color': Colors.amber,
     },
     {
-      'title': 'Track Habits & Streaks',
-      'description': 'Build daily consistency with interactive visual streak trackers, progress rings, and notifications.',
-      'icon': Icons.insights_rounded,
+      'title': 'Track Habits & Consistency',
+      'description': 'Achieve star consistency with interactive streak trackers, shields, and custom notifications.',
+      'icon': Icons.stars_rounded,
       'color': const Color(0xFF7C4DFF),
     },
     {
-      'title': '100% Offline & Private',
-      'description': 'Your data stays completely local on your device powered by Hive high-speed local database.',
-      'icon': Icons.security_rounded,
+      'title': '100% Offline & Protected',
+      'description': 'Your stats and personal journey stay completely secure and private local on your device.',
+      'icon': Icons.shield_rounded,
       'color': const Color(0xFF4CAF50),
     },
   ];

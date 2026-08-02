@@ -8,6 +8,8 @@ class Habit {
   final String category;
   final int targetCount;
   final int currentCount;
+  final int previousStreak;
+  final bool isFrozen;
 
   Habit({
     required this.id,
@@ -19,6 +21,8 @@ class Habit {
     this.category = 'Health',
     this.targetCount = 1,
     this.currentCount = 0,
+    this.previousStreak = 0,
+    this.isFrozen = false,
   });
 
   Map<String, dynamic> toMap() {
@@ -32,6 +36,8 @@ class Habit {
       'category': category,
       'targetCount': targetCount,
       'currentCount': currentCount,
+      'previousStreak': previousStreak,
+      'isFrozen': isFrozen,
     };
   }
 
@@ -46,6 +52,8 @@ class Habit {
       category: map['category'] ?? 'Health',
       targetCount: map['targetCount'] ?? 1,
       currentCount: map['currentCount'] ?? 0,
+      previousStreak: map['previousStreak'] ?? 0,
+      isFrozen: map['isFrozen'] ?? false,
     );
   }
 
@@ -59,6 +67,8 @@ class Habit {
     String? category,
     int? targetCount,
     int? currentCount,
+    int? previousStreak,
+    bool? isFrozen,
   }) {
     return Habit(
       id: id ?? this.id,
@@ -70,6 +80,8 @@ class Habit {
       category: category ?? this.category,
       targetCount: targetCount ?? this.targetCount,
       currentCount: currentCount ?? this.currentCount,
+      previousStreak: previousStreak ?? this.previousStreak,
+      isFrozen: isFrozen ?? this.isFrozen,
     );
   }
 }

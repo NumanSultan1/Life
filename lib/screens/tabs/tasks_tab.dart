@@ -185,6 +185,18 @@ class TasksTab extends StatelessWidget {
                         itemCount: tasksList.length,
                         itemBuilder: (context, index) {
                           final task = tasksList[index];
+                          Color priorityColor;
+                          switch (task.priority) {
+                            case 'High':
+                              priorityColor = Colors.red;
+                              break;
+                            case 'Medium':
+                              priorityColor = Colors.orange;
+                              break;
+                            default:
+                              priorityColor = Colors.blue;
+                          }
+
                           return Dismissible(
                             key: Key(task.id),
                             direction: DismissDirection.endToStart,
@@ -198,23 +210,74 @@ class TasksTab extends StatelessWidget {
                             child: Card(
                               margin: const EdgeInsets.only(bottom: 12),
                               shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-                              child: ListTile(
-                                leading: Checkbox(
-                                  value: task.isCompleted,
-                                  onChanged: (_) => provider.toggleTaskStatus(task.id),
-                                  activeColor: AppColors.primary,
-                                ),
-                                title: Text(
-                                  task.title,
-                                  style: TextStyle(
-                                    fontWeight: FontWeight.bold,
-                                    decoration: task.isCompleted ? TextDecoration.lineThrough : null,
+                              child: Padding(
+                                padding: const EdgeInsets.symmetric(vertical: 8.0),
+                                child: ListTile(
+                                  leading: Checkbox(
+                                    value: task.isCompleted,
+                                    onChanged: (_) => provider.toggleTaskStatus(task.id),
+                                    activeColor: AppColors.primary,
                                   ),
-                                ),
-                                subtitle: Text('${task.category} • ${task.priority} Priority'),
-                                trailing: IconButton(
-                                  icon: const Icon(Icons.delete_outline_rounded, color: Colors.grey),
-                                  onPressed: () => provider.deleteTask(task.id),
+                                  title: Text(
+                                    task.title,
+                                    style: TextStyle(
+                                      fontWeight: FontWeight.bold,
+                                      fontSize: 16,
+                                      decoration: task.isCompleted ? TextDecoration.lineThrough : null,
+                                      color: task.isCompleted ? Colors.grey : null,
+                                    ),
+                                  ),
+                                  subtitle: Padding(
+                                    padding: const EdgeInsets.only(top: 6.0),
+                                    child: Column(
+                                      crossAxisAlignment: CrossAxisAlignment.start,
+                                      children: [
+                                        Row(
+                                          children: [
+                                            Container(
+                                              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+                                              decoration: BoxDecoration(
+                                                color: priorityColor.withValues(alpha: 0.12),
+                                                borderRadius: BorderRadius.circular(6),
+                                              ),
+                                              child: Text(
+                                                task.priority,
+                                                style: TextStyle(
+                                                  color: priorityColor,
+                                                  fontSize: 11,
+                                                  fontWeight: FontWeight.bold,
+                                                ),
+                                              ),
+                                            ),
+                                            const SizedBox(width: 8),
+                                            Text(
+                                              task.category,
+                                              style: TextStyle(
+                                                fontSize: 12,
+                                                color: isDark ? Colors.grey[400] : Colors.grey[600],
+                                                fontWeight: FontWeight.w500,
+                                              ),
+                                            ),
+                                          ],
+                                        ),
+                                        if (task.description.isNotEmpty) ...[
+                                          const SizedBox(height: 8),
+                                          Text(
+                                            task.description,
+                                            style: TextStyle(
+                                              fontSize: 13,
+                                              color: isDark ? Colors.grey[300] : Colors.grey[700],
+                                              decoration: task.isCompleted ? TextDecoration.lineThrough : null,
+                                            ),
+                                          ),
+                                        ],
+                                      ],
+                                    ),
+                                  ),
+                                  trailing: IconButton(
+                                    icon: const Icon(Icons.delete_outline_rounded, color: Colors.grey),
+                                    onPressed: () => provider.deleteTask(task.id),
+                                  ),
                                 ),
                               ),
                             ),
