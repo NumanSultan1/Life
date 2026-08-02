@@ -13,12 +13,27 @@ class ProfileScreen extends StatefulWidget {
 
 class _ProfileScreenState extends State<ProfileScreen> {
   String _userName = 'User';
+  int _level = 1;
+  int _xp = 0;
+  int _freezers = 2;
+  int _restoreTokens = 2;
 
   @override
   void initState() {
     super.initState();
+    _loadUserData();
+  }
+
+  void _loadUserData() {
+    final user = HiveService.getCurrentUser();
     final box = Hive.box(HiveService.settingsBox);
-    _userName = box.get('userName', defaultValue: 'User');
+    setState(() {
+      _userName = user;
+      _level = box.get('${user}_level', defaultValue: 1) as int;
+      _xp = box.get('${user}_xp', defaultValue: 0) as int;
+      _freezers = box.get('${user}_streakFreezers', defaultValue: 2) as int;
+      _restoreTokens = box.get('${user}_streakRestoreTokens', defaultValue: 2) as int;
+    });
   }
 
   void _toggleDarkMode(bool isDark) async {
@@ -31,6 +46,8 @@ class _ProfileScreenState extends State<ProfileScreen> {
   @override
   Widget build(BuildContext context) {
     final isDark = Theme.of(context).brightness == Brightness.dark;
+    final xpNeeded = _level * 100;
+    final xpProgress = _xp / xpNeeded;
 
     return SafeArea(
       child: SingleChildScrollView(
@@ -51,7 +68,67 @@ class _ProfileScreenState extends State<ProfileScreen> {
               style: Theme.of(context).textTheme.titleLarge?.copyWith(fontSize: 22, fontWeight: FontWeight.bold),
             ),
             const Text('Productivity Enthusiast', style: TextStyle(color: Colors.grey)),
-            const SizedBox(height: 24),
+            const SizedBox(height: 16),
+
+            // Gamified Profile stats Card
+            Card(
+              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+              elevation: 4,
+              child: Padding(
+                padding: const EdgeInsets.all(18.0),
+                child: Column(
+                  children: [
+                    Row(
+                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                      children: [
+                        Text(
+                          'Level $_level Hero 🛡️',
+                          style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16, color: AppColors.primary),
+                        ),
+                        Text(
+                          '$_xp / $xpNeeded XP',
+                          style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 14, color: Colors.grey),
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 8),
+                    ClipRRect(
+                      borderRadius: BorderRadius.circular(8),
+                      child: LinearProgressIndicator(
+                        value: xpProgress,
+                        minHeight: 10,
+                        backgroundColor: Colors.grey.shade200,
+                        valueColor: const AlwaysStoppedAnimation<Color>(AppColors.primary),
+                      ),
+                    ),
+                    const SizedBox(height: 16),
+                    Row(
+                      mainAxisAlignment: MainAxisAlignment.spaceAround,
+                      children: [
+                        Column(
+                          children: [
+                            const Icon(Icons.ac_unit_rounded, color: Colors.blueAccent, size: 28),
+                            const SizedBox(height: 4),
+                            Text('$_freezers Freezers', style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 13)),
+                            const Text('Streak Shields', style: TextStyle(color: Colors.grey, fontSize: 11)),
+                          ],
+                        ),
+                        Column(
+                          children: [
+                            const Icon(Icons.autorenew_rounded, color: Colors.teal, size: 28),
+                            const SizedBox(height: 4),
+                            Text('$_restoreTokens Tokens', style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 13)),
+                            const Text('Streak Restores', style: TextStyle(color: Colors.grey, fontSize: 11)),
+                          ],
+                        ),
+                      ],
+                    ),
+                  ],
+                ),
+              ),
+            ),
+            const SizedBox(height: 16),
+
             Card(
               shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
               child: Column(
@@ -86,8 +163,15 @@ class _ProfileScreenState extends State<ProfileScreen> {
               width: double.infinity,
               height: 50,
               child: OutlinedButton.icon(
-                onPressed: () {
-                  Navigator.of(context).pushReplacementNamed('/login');
+                onPressed: () async {
+                  final box = Hive.box(HiveService.settingsBox);
+                  await box.put('isLoggedIn', false);
+                  await box.put('currentUser', '');
+                  await box.put('userName', 'User');
+                  if (mounted) {
+                    // ignore: use_build_context_synchronously
+                    Navigator.of(context).pushReplacementNamed('/login');
+                  }
                 },
                 style: OutlinedButton.styleFrom(
                   foregroundColor: AppColors.danger,

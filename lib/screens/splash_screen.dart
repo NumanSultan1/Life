@@ -86,9 +86,9 @@ class _SplashScreenState extends State<SplashScreen> with SingleTickerProviderSt
                       ],
                     ),
                     child: const Icon(
-                      Icons.dashboard_customize_rounded,
+                      Icons.bolt_rounded,
                       size: 72,
-                      color: Colors.white,
+                      color: Colors.amberAccent,
                     ),
                   ),
                   const SizedBox(height: 24),

@@ -1,7 +1,11 @@
 import 'package:flutter/material.dart';
 import 'package:hive_flutter/hive_flutter.dart';
+import 'package:provider/provider.dart';
 import '../../services/hive_service.dart';
 import '../../theme/app_colors.dart';
+import '../../providers/task_provider.dart';
+import '../../providers/habit_provider.dart';
+import '../../providers/journal_provider.dart';
 
 class LoginScreen extends StatefulWidget {
   const LoginScreen({super.key});
@@ -24,11 +28,17 @@ class _LoginScreenState extends State<LoginScreen> {
       return;
     }
 
+    await HiveService.setCurrentUser(name);
     final box = Hive.box(HiveService.settingsBox);
     await box.put('userName', name);
     await box.put('isLoggedIn', true);
 
     if (mounted) {
+      // Reload providers for the newly logged-in user
+      Provider.of<TaskProvider>(context, listen: false).loadTasks();
+      Provider.of<HabitProvider>(context, listen: false).loadHabits();
+      Provider.of<JournalProvider>(context, listen: false).loadEntries();
+
       Navigator.of(context).pushReplacementNamed('/home');
     }
   }
@@ -46,13 +56,13 @@ class _LoginScreenState extends State<LoginScreen> {
                 Container(
                   padding: const EdgeInsets.all(20),
                   decoration: BoxDecoration(
-                    color: AppColors.primary.withValues(alpha: 0.1),
+                    color: Colors.amber.withValues(alpha: 0.15),
                     shape: BoxShape.circle,
                   ),
                   child: const Icon(
-                    Icons.account_circle_rounded,
+                    Icons.bolt_rounded,
                     size: 64,
-                    color: AppColors.primary,
+                    color: Colors.amber,
                   ),
                 ),
                 const SizedBox(height: 24),

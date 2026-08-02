@@ -14,23 +14,35 @@ class _MoodTrackerCardState extends State<MoodTrackerCard> {
   final List<String> _emojis = ['😄', '😊', '😐', '😔', '😭'];
   String _selectedMood = '😊';
 
+  final Map<String, String> _moodTips = {
+    '😄': 'Awesome! Spread this positive energy and conquer your goals today! 🌟🚀',
+    '😊': 'A peaceful mind is a powerful tool. Have a wonderfully productive and happy day! ✨',
+    '😐': 'Take a deep breath. A steady, calm focus is often the most consistent way to move forward. 🧘‍♂️',
+    '😔': 'It is okay to have low-energy days. Rest if you need to, and prioritize self-care today. 🩹❤️',
+    '😭': 'You are not alone, and this feeling will pass. Take things one small step at a time. 🫂🌻',
+  };
+
   @override
   void initState() {
     super.initState();
+    final user = HiveService.getCurrentUser();
     final box = Hive.box(HiveService.settingsBox);
-    _selectedMood = box.get('moodToday', defaultValue: '😊');
+    _selectedMood = box.get('${user}_moodToday', defaultValue: '😊');
   }
 
   void _selectMood(String emoji) {
+    final user = HiveService.getCurrentUser();
     setState(() {
       _selectedMood = emoji;
     });
     final box = Hive.box(HiveService.settingsBox);
-    box.put('moodToday', emoji);
+    box.put('${user}_moodToday', emoji);
   }
 
   @override
   Widget build(BuildContext context) {
+    final tip = _moodTips[_selectedMood] ?? 'Have a beautiful and productive day!';
+
     return CustomCard(
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -70,6 +82,32 @@ class _MoodTrackerCardState extends State<MoodTrackerCard> {
                 ),
               );
             }).toList(),
+          ),
+          const SizedBox(height: 16),
+          Container(
+            width: double.infinity,
+            padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+            decoration: BoxDecoration(
+              color: const Color(0xFF7C4DFF).withValues(alpha: 0.08),
+              borderRadius: BorderRadius.circular(12),
+              border: Border.all(color: const Color(0xFF7C4DFF).withValues(alpha: 0.15)),
+            ),
+            child: Row(
+              children: [
+                const Icon(Icons.favorite_rounded, color: Color(0xFF7C4DFF), size: 20),
+                const SizedBox(width: 10),
+                Expanded(
+                  child: Text(
+                    tip,
+                    style: const TextStyle(
+                      fontSize: 13,
+                      fontWeight: FontWeight.w500,
+                      height: 1.4,
+                    ),
+                  ),
+                ),
+              ],
+            ),
           ),
         ],
       ),
