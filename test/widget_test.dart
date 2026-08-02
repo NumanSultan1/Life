@@ -20,7 +20,7 @@ void main() {
 
   testWidgets('App loads splash screen title', (WidgetTester tester) async {
     await tester.pumpWidget(const LifeDashboardApp());
-    expect(find.text('Life Dashboard'), findsOneWidget);
+    expect(find.text('Aura'), findsOneWidget);
     await tester.pump(const Duration(seconds: 3));
   });
 }

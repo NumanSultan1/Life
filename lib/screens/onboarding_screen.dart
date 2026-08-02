@@ -14,9 +14,9 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
 
   final List<Map<String, dynamic>> _pages = [
     {
-      'title': 'Unleash Your Potential',
-      'description': 'Propel your daily performance! Seamlessly combine Tasks, Habits, and Reflection into your personal power hub.',
-      'icon': Icons.bolt_rounded,
+      'title': 'Aura',
+      'description': 'Propel your daily performance! Seamlessly combine Tasks, Habits, and Reflection into your personal flow hub.',
+      'icon': Icons.auto_awesome_rounded,
       'color': Colors.amber,
     },
     {

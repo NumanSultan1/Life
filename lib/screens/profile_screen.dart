@@ -150,7 +150,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
                   const Divider(height: 1),
                   ListTile(
                     leading: const Icon(Icons.info_outline_rounded, color: AppColors.accent),
-                    title: const Text('About Life Dashboard'),
+                    title: const Text('About Aura'),
                     subtitle: const Text('Version 1.0.0 • Vortex Tech Week 4'),
                     trailing: const Icon(Icons.chevron_right_rounded),
                     onTap: () {},

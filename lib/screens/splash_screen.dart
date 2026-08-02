@@ -86,24 +86,24 @@ class _SplashScreenState extends State<SplashScreen> with SingleTickerProviderSt
                       ],
                     ),
                     child: const Icon(
-                      Icons.bolt_rounded,
+                      Icons.auto_awesome_rounded,
                       size: 72,
                       color: Colors.amberAccent,
                     ),
                   ),
                   const SizedBox(height: 24),
                   const Text(
-                    'Life Dashboard',
+                    'Aura',
                     style: TextStyle(
-                      fontSize: 32,
+                      fontSize: 42,
                       fontWeight: FontWeight.bold,
                       color: Colors.white,
-                      letterSpacing: 1.2,
+                      letterSpacing: 2.0,
                     ),
                   ),
                   const SizedBox(height: 8),
                   Text(
-                    'Organize Tasks, Habits & Mindset',
+                    'Your Aesthetic Mindset & Flow Hub',
                     style: TextStyle(
                       fontSize: 16,
                       color: Colors.white.withValues(alpha: 0.9),

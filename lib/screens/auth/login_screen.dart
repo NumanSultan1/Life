@@ -60,14 +60,14 @@ class _LoginScreenState extends State<LoginScreen> {
                     shape: BoxShape.circle,
                   ),
                   child: const Icon(
-                    Icons.bolt_rounded,
+                    Icons.auto_awesome_rounded,
                     size: 64,
                     color: Colors.amber,
                   ),
                 ),
                 const SizedBox(height: 24),
                 Text(
-                  _isSignUp ? 'Create Local Account' : 'Welcome Back',
+                  _isSignUp ? 'Create Aura Account' : 'Welcome to Aura',
                   style: Theme.of(context).textTheme.titleLarge?.copyWith(
                         fontSize: 26,
                         fontWeight: FontWeight.bold,
@@ -75,7 +75,7 @@ class _LoginScreenState extends State<LoginScreen> {
                 ),
                 const SizedBox(height: 8),
                 Text(
-                  'Access your personalized Life Dashboard',
+                  'Access your personalized aesthetic flow hub',
                   style: Theme.of(context).textTheme.bodyMedium,
                 ),
                 const SizedBox(height: 32),

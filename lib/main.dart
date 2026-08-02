@@ -42,7 +42,7 @@ class LifeDashboardApp extends StatelessWidget {
       valueListenable: themeNotifier,
       builder: (context, mode, _) {
         return MaterialApp(
-          title: 'Life Dashboard',
+          title: 'Aura',
           debugShowCheckedModeBanner: false,
           theme: AppTheme.light,
           darkTheme: AppTheme.dark,
