@@ -33,6 +33,9 @@ class AppColors {
   static const Color darkTextSecondary = Color(0xFF9AA3CC);
   static const Color darkBorder = Color(0xFF232C5C);
 
+  /// Royal blue reads poorly on the dark navy background; use sky there.
+  static Color accentOn(BuildContext context) => Theme.of(context).brightness == Brightness.dark ? sky : royal;
+
   // Gradients
   static const LinearGradient primaryGradient = LinearGradient(
     colors: [Color(0xFFE6A8DA), Color(0xFF4F7FE0), royal],

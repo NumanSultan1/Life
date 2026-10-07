@@ -217,7 +217,7 @@ class _ShopTile extends StatelessWidget {
                   style: TextStyle(
                     fontSize: 11,
                     fontWeight: FontWeight.w700,
-                    color: onBuy != null ? AppColors.royal : Theme.of(context).textTheme.bodyMedium?.color,
+                    color: onBuy != null ? AppColors.accentOn(context) : Theme.of(context).textTheme.bodyMedium?.color,
                   ),
                 ),
               ],

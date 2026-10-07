@@ -205,9 +205,9 @@ class _GoalCard extends StatelessWidget {
                 height: 44,
                 decoration: BoxDecoration(
                   shape: BoxShape.circle,
-                  color: done ? AppColors.royal : AppColors.royal.withValues(alpha: 0.1),
+                  color: done ? AppColors.royal : AppColors.accentOn(context).withValues(alpha: isDark ? 0.18 : 0.1),
                 ),
-                child: Icon(done ? Icons.emoji_events_rounded : Icons.flag_rounded, color: done ? Colors.white : AppColors.royal, size: 22),
+                child: Icon(done ? Icons.emoji_events_rounded : Icons.flag_rounded, color: done ? Colors.white : AppColors.accentOn(context), size: 22),
               ),
               const SizedBox(width: 12),
               Expanded(
@@ -246,7 +246,7 @@ class _GoalCard extends StatelessWidget {
                 Container(
                   height: 10,
                   decoration: BoxDecoration(
-                    color: isDark ? Colors.white.withValues(alpha: 0.08) : const Color(0xFFE3E6F5),
+                    color: isDark ? Colors.white.withValues(alpha: 0.14) : const Color(0xFFE3E6F5),
                     borderRadius: BorderRadius.circular(10),
                   ),
                 ),
@@ -296,6 +296,7 @@ class _StepButton extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final color = AppColors.accentOn(context);
     return Tooltip(
       message: tooltip,
       child: Pressable(
@@ -306,9 +307,9 @@ class _StepButton extends StatelessWidget {
           height: 36,
           decoration: BoxDecoration(
             shape: BoxShape.circle,
-            border: Border.all(color: AppColors.royal.withValues(alpha: 0.4), width: 1.5),
+            border: Border.all(color: color.withValues(alpha: 0.6), width: 1.5),
           ),
-          child: Icon(icon, color: AppColors.royal, size: 18),
+          child: Icon(icon, color: color, size: 18),
         ),
       ),
     );
