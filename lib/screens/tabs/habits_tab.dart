@@ -8,6 +8,8 @@ import '../../services/hive_service.dart';
 import '../../utils/habit_icons.dart';
 import '../../widgets/common/milestone_dialog.dart';
 import '../../widgets/liquid/liquid.dart';
+import '../../widgets/illustrations.dart';
+import '../../utils/feedback.dart';
 
 Future<void> showAddHabitSheet(BuildContext context) {
   final titleController = TextEditingController();
@@ -69,6 +71,48 @@ Future<void> showAddHabitSheet(BuildContext context) {
 class HabitsTab extends StatelessWidget {
   const HabitsTab({super.key});
 
+  void _showStreakHelp(BuildContext context) {
+    Widget row(IconData icon, Color color, String title, String text) => Padding(
+          padding: const EdgeInsets.only(bottom: 16),
+          child: Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Container(
+                width: 40,
+                height: 40,
+                decoration: BoxDecoration(shape: BoxShape.circle, color: color.withValues(alpha: 0.14)),
+                child: Icon(icon, color: color, size: 20),
+              ),
+              const SizedBox(width: 14),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(title, style: const TextStyle(fontWeight: FontWeight.w800, fontSize: 15)),
+                    const SizedBox(height: 2),
+                    Text(text, style: Theme.of(context).textTheme.bodyMedium?.copyWith(fontSize: 13, height: 1.4)),
+                  ],
+                ),
+              ),
+            ],
+          ),
+        );
+    showLiquidSheet(
+      context: context,
+      title: 'How streaks work',
+      builder: (_) => Column(
+        children: [
+          const Illustration(IllustrationKind.habits, size: 140),
+          const SizedBox(height: 8),
+          row(Icons.local_fire_department_rounded, AppColors.warning, 'Streaks', 'Mark a habit done each day to grow its streak. Miss a day and it resets to 0. Each check earns 15 XP.'),
+          row(Icons.ac_unit_rounded, AppColors.sky, 'Shields (50 XP)', 'Turn on "Freeze Streak" before a day off and your streak survives one missed day.'),
+          row(Icons.autorenew_rounded, AppColors.accent, 'Tokens (80 XP)', 'Lost a streak? Use a token to bring it back.'),
+          row(Icons.emoji_events_rounded, AppColors.violet, 'Milestones', 'Hitting 3, 7, 15, 30 days and beyond shows a celebration.'),
+        ],
+      ),
+    );
+  }
+
   void _snack(BuildContext context, String text) {
     if (context.mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(text)));
   }
@@ -100,8 +144,21 @@ class HabitsTab extends StatelessWidget {
                   children: [
                     Row(
                       children: [
-                        Expanded(child: Text('Habit Tracker', style: textTheme.titleLarge?.copyWith(fontSize: 26))),
+                        Expanded(
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Text('Habits', style: textTheme.titleLarge?.copyWith(fontSize: 26)),
+                              Text('Small things you do every day', style: textTheme.bodyMedium?.copyWith(fontSize: 13)),
+                            ],
+                          ),
+                        ),
                         GlassPill(text: '$xp XP', icon: Icons.bolt_rounded, color: AppColors.violet),
+                        const SizedBox(width: 8),
+                        Tooltip(
+                          message: 'How streaks work',
+                          child: GlassIconButton(icon: Icons.help_outline_rounded, onLiquid: false, size: 38, onTap: () => _showStreakHelp(context)),
+                        ),
                       ],
                     ),
                     const SizedBox(height: 20),
@@ -154,10 +211,13 @@ class HabitsTab extends StatelessWidget {
                 children: [
                   Row(
                     children: [
-                      const Expanded(
-                        child: Text(
-                          "Today's Habits",
-                          style: TextStyle(color: Colors.white, fontSize: 20, fontWeight: FontWeight.w800),
+                      Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            const Text("Today's Habits", style: TextStyle(color: Colors.white, fontSize: 20, fontWeight: FontWeight.w800)),
+                            Text('Tap the circle once you\'ve done it today', style: TextStyle(color: Colors.white.withValues(alpha: 0.8), fontSize: 12.5)),
+                          ],
                         ),
                       ),
                       GlassIconButton(icon: Icons.add_rounded, onTap: () => showAddHabitSheet(context)),
@@ -242,11 +302,11 @@ class _EmptyOnLiquid extends StatelessWidget {
       padding: const EdgeInsets.symmetric(vertical: 32, horizontal: 20),
       child: Column(
         children: [
-          const Floating(child: Icon(Icons.loop_rounded, size: 44)),
+          const Illustration(IllustrationKind.habits, size: 150),
           const SizedBox(height: 12),
-          const Text('No Habits Set', style: TextStyle(fontSize: 17, fontWeight: FontWeight.w800)),
+          const Text('Build your first habit', style: TextStyle(fontSize: 17, fontWeight: FontWeight.w800)),
           const SizedBox(height: 4),
-          Text('Tap to start building a positive daily habit!', style: TextStyle(color: Colors.white.withValues(alpha: 0.8), fontSize: 13)),
+          Text('Habits are things you do every day, like a morning walk. Tap here to add one.', textAlign: TextAlign.center, style: TextStyle(color: Colors.white.withValues(alpha: 0.85), fontSize: 13, height: 1.4)),
         ],
       ),
     );
@@ -325,7 +385,11 @@ class _HabitCard extends StatelessWidget {
               IconButton(
                 visualDensity: VisualDensity.compact,
                 icon: Icon(Icons.delete_outline_rounded, color: faded, size: 20),
-                onPressed: () => provider.deleteHabit(habit.id),
+                tooltip: 'Delete habit',
+                onPressed: () {
+                  provider.deleteHabit(habit.id);
+                  showUndoSnackBar(context, 'Habit deleted', () => provider.addHabit(habit));
+                },
               ),
             ],
           ),

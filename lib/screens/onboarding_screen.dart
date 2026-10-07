@@ -2,6 +2,8 @@ import 'package:flutter/material.dart';
 import 'package:hive_flutter/hive_flutter.dart';
 import '../theme/app_colors.dart';
 import '../widgets/liquid/liquid.dart';
+import '../widgets/illustrations.dart';
+import '../widgets/life_logo.dart';
 
 class OnboardingScreen extends StatefulWidget {
   const OnboardingScreen({super.key});
@@ -17,19 +19,24 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
 
   final List<Map<String, dynamic>> _pages = [
     {
-      'title': 'Unleash Your Potential',
-      'description': 'Propel your daily performance! Seamlessly combine Tasks, Habits, and Reflection into your personal power hub.',
-      'icon': Icons.bolt_rounded,
+      'title': 'Your whole day, in one place',
+      'description': 'Life helps you plan what to do, build good habits, reach bigger goals and reflect on your day.',
+      'illustration': IllustrationKind.welcome,
     },
     {
-      'title': 'Maintain Daily Habits',
-      'description': 'Achieve star consistency with interactive streak trackers, shields, and custom notifications.',
-      'icon': Icons.local_fire_department_rounded,
+      'title': 'Plan tasks and goals',
+      'description': 'Add tasks for today. For bigger goals, pick how many days you need and check in each day you work on it.',
+      'illustration': IllustrationKind.goals,
     },
     {
-      'title': '100% Offline & Protected',
-      'description': 'Your stats and personal journey stay completely secure and private local on your device.',
-      'icon': Icons.shield_rounded,
+      'title': 'Build daily habits',
+      'description': 'Tick a habit every day to grow your streak 🔥. Everything you finish earns XP so you can level up.',
+      'illustration': IllustrationKind.habits,
+    },
+    {
+      'title': 'Reflect, privately',
+      'description': 'Write a few lines about your day. No account or internet needed: everything stays on your phone.',
+      'illustration': IllustrationKind.journal,
     },
   ];
 
@@ -73,6 +80,10 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
                     bottom: false,
                     child: Stack(
                       children: [
+                        const Align(
+                          alignment: Alignment.topLeft,
+                          child: Padding(padding: EdgeInsets.fromLTRB(22, 18, 0, 0), child: LifeLogo(fontSize: 30, onLiquid: true)),
+                        ),
                         Align(
                           alignment: Alignment.topRight,
                           child: Padding(
@@ -91,17 +102,17 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
                                 offset: Offset((i - _page) * 160, 0),
                                 child: Transform.scale(
                                   scale: 1 - ((_page - i).abs() * 0.3).clamp(0.0, 0.3),
-                                  child: Floating(
+                                  child: Padding(
+                                    padding: const EdgeInsets.only(top: 40),
                                     child: Container(
-                                      width: 150,
-                                      height: 150,
+                                      width: 240,
+                                      height: 240,
                                       decoration: BoxDecoration(
                                         shape: BoxShape.circle,
-                                        color: Colors.white.withValues(alpha: 0.18),
-                                        border: Border.all(color: Colors.white.withValues(alpha: 0.5), width: 1.5),
+                                        color: Colors.white.withValues(alpha: 0.85),
                                         boxShadow: [BoxShadow(color: AppColors.navy.withValues(alpha: 0.3), blurRadius: 40, offset: const Offset(0, 20))],
                                       ),
-                                      child: Icon(_pages[i]['icon'] as IconData, size: 72, color: Colors.white),
+                                      child: Illustration(_pages[i]['illustration'] as IllustrationKind, size: 220),
                                     ),
                                   ),
                                 ),

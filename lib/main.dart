@@ -9,6 +9,7 @@ import 'theme/app_theme.dart';
 import 'providers/task_provider.dart';
 import 'providers/habit_provider.dart';
 import 'providers/journal_provider.dart';
+import 'providers/goal_provider.dart';
 import 'screens/splash_screen.dart';
 import 'screens/onboarding_screen.dart';
 import 'screens/auth/login_screen.dart';
@@ -37,6 +38,7 @@ void main() async {
         ChangeNotifierProvider(create: (_) => TaskProvider()),
         ChangeNotifierProvider(create: (_) => HabitProvider()),
         ChangeNotifierProvider(create: (_) => JournalProvider()),
+        ChangeNotifierProvider(create: (_) => GoalProvider()),
       ],
       child: const LifeDashboardApp(),
     ),
@@ -52,7 +54,7 @@ class LifeDashboardApp extends StatelessWidget {
       valueListenable: themeNotifier,
       builder: (context, mode, _) {
         return MaterialApp(
-          title: 'Life Dashboard',
+          title: 'Life',
           debugShowCheckedModeBanner: false,
           theme: AppTheme.light,
           darkTheme: AppTheme.dark,

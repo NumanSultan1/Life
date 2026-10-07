@@ -69,6 +69,8 @@ class HiveService {
     int currentLevel = box.get('${user}_level', defaultValue: 1) as int;
 
     currentXp += xpAmount;
+    // Negative amounts take back XP from an undone action, never below 0.
+    if (currentXp < 0) currentXp = 0;
     int xpNeeded = currentLevel * 100;
 
     while (currentXp >= xpNeeded) {

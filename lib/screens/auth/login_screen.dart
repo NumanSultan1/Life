@@ -4,9 +4,11 @@ import 'package:provider/provider.dart';
 import '../../services/hive_service.dart';
 import '../../theme/app_colors.dart';
 import '../../widgets/liquid/liquid.dart';
+import '../../widgets/life_logo.dart';
 import '../../providers/task_provider.dart';
 import '../../providers/habit_provider.dart';
 import '../../providers/journal_provider.dart';
+import '../../providers/goal_provider.dart';
 
 class LoginScreen extends StatefulWidget {
   const LoginScreen({super.key});
@@ -18,7 +20,8 @@ class LoginScreen extends StatefulWidget {
 class _LoginScreenState extends State<LoginScreen> {
   final _nameController = TextEditingController();
   final _passwordController = TextEditingController();
-  bool _isSignUp = false;
+  // Start on "create profile" when nobody has signed up on this device yet.
+  bool _isSignUp = !Hive.box(HiveService.settingsBox).keys.any((k) => k.toString().endsWith('_level'));
 
   void _submit() async {
     final name = _nameController.text.trim();
@@ -39,6 +42,7 @@ class _LoginScreenState extends State<LoginScreen> {
       Provider.of<TaskProvider>(context, listen: false).loadTasks();
       Provider.of<HabitProvider>(context, listen: false).loadHabits();
       Provider.of<JournalProvider>(context, listen: false).loadEntries();
+      Provider.of<GoalProvider>(context, listen: false).loadGoals();
 
       Navigator.of(context).pushReplacementNamed('/home');
     }
@@ -51,6 +55,7 @@ class _LoginScreenState extends State<LoginScreen> {
       body: AmbientBackground(
         child: SingleChildScrollView(
           child: Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
               AnimatedWaveClip(
                 edge: WaveEdge.bottom,
@@ -63,18 +68,7 @@ class _LoginScreenState extends State<LoginScreen> {
                       padding: const EdgeInsets.fromLTRB(28, 48, 28, 70),
                       child: Column(
                         children: [
-                          Floating(
-                            child: Container(
-                              width: 96,
-                              height: 96,
-                              decoration: BoxDecoration(
-                                shape: BoxShape.circle,
-                                color: Colors.white.withValues(alpha: 0.2),
-                                border: Border.all(color: Colors.white.withValues(alpha: 0.55), width: 1.5),
-                              ),
-                              child: const Icon(Icons.bolt_rounded, size: 52, color: Colors.white),
-                            ),
-                          ),
+                          const Floating(distance: 6, child: LifeLogo(fontSize: 54, onLiquid: true)),
                           const SizedBox(height: 22),
                           AnimatedSwitcher(
                             duration: const Duration(milliseconds: 300),
@@ -83,14 +77,15 @@ class _LoginScreenState extends State<LoginScreen> {
                               child: SlideTransition(position: Tween(begin: const Offset(0, 0.3), end: Offset.zero).animate(a), child: child),
                             ),
                             child: Text(
-                              _isSignUp ? 'Create Local Account' : 'Welcome Back',
+                              _isSignUp ? 'Create your profile' : 'Welcome Back',
                               key: ValueKey(_isSignUp),
                               style: const TextStyle(color: Colors.white, fontSize: 28, fontWeight: FontWeight.w800),
                             ),
                           ),
                           const SizedBox(height: 6),
                           Text(
-                            'Access your personalized Life Dashboard',
+                            _isSignUp ? 'Just pick a name. No email or password needed.' : 'Enter the name you signed up with',
+                            textAlign: TextAlign.center,
                             style: TextStyle(color: Colors.white.withValues(alpha: 0.85), fontWeight: FontWeight.w500),
                           ),
                         ],
@@ -115,7 +110,7 @@ class _LoginScreenState extends State<LoginScreen> {
                           decoration: const InputDecoration(hintText: 'e.g. Alex', prefixIcon: Icon(Icons.person_rounded)),
                         ),
                         const SizedBox(height: 16),
-                        Text('PIN / Passcode (Optional)', style: textTheme.titleMedium?.copyWith(fontSize: 14)),
+                        Text('PIN (optional)', style: textTheme.titleMedium?.copyWith(fontSize: 14)),
                         const SizedBox(height: 8),
                         TextField(
                           controller: _passwordController,
@@ -124,7 +119,15 @@ class _LoginScreenState extends State<LoginScreen> {
                           decoration: const InputDecoration(hintText: '••••', prefixIcon: Icon(Icons.lock_rounded)),
                         ),
                         const SizedBox(height: 26),
-                        GlowButton(label: _isSignUp ? 'Sign Up' : 'Log In', onPressed: _submit),
+                        GlowButton(label: _isSignUp ? 'Create my profile' : 'Log In', onPressed: _submit),
+                        const SizedBox(height: 12),
+                        Row(
+                          children: [
+                            Icon(Icons.lock_outline_rounded, size: 15, color: textTheme.bodyMedium?.color),
+                            const SizedBox(width: 6),
+                            Expanded(child: Text('Your data stays on this phone. Nothing is uploaded.', style: textTheme.bodyMedium?.copyWith(fontSize: 12))),
+                          ],
+                        ),
                         const SizedBox(height: 12),
                         Center(
                           child: TextButton(

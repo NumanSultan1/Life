@@ -5,6 +5,8 @@ import '../../models/task.dart';
 import '../../theme/app_colors.dart';
 import '../../widgets/common/empty_state.dart';
 import '../../widgets/liquid/liquid.dart';
+import '../../widgets/illustrations.dart';
+import '../../utils/feedback.dart';
 
 const _taskCategories = {
   'General': Icons.inbox_rounded,
@@ -102,125 +104,126 @@ Future<void> showAddTaskSheet(BuildContext context) {
   );
 }
 
-class TasksTab extends StatelessWidget {
-  const TasksTab({super.key});
+/// Search box and category chips shown in the Plan header for tasks.
+class TaskFilters extends StatelessWidget {
+  const TaskFilters({super.key});
+
+  @override
+  Widget build(BuildContext context) {
+    final provider = Provider.of<TaskProvider>(context);
+    return Column(
+      children: [
+        TextField(
+          onChanged: provider.setSearchQuery,
+          style: const TextStyle(color: Colors.white),
+          cursorColor: Colors.white,
+          decoration: InputDecoration(
+            hintText: 'Search tasks...',
+            hintStyle: TextStyle(color: Colors.white.withValues(alpha: 0.75)),
+            prefixIcon: const Icon(Icons.search_rounded, color: Colors.white),
+            fillColor: Colors.white.withValues(alpha: 0.18),
+            enabledBorder: OutlineInputBorder(
+              borderRadius: BorderRadius.circular(18),
+              borderSide: BorderSide(color: Colors.white.withValues(alpha: 0.4)),
+            ),
+            focusedBorder: OutlineInputBorder(
+              borderRadius: BorderRadius.circular(18),
+              borderSide: const BorderSide(color: Colors.white, width: 1.5),
+            ),
+          ),
+        ),
+        const SizedBox(height: 12),
+        SingleChildScrollView(
+          scrollDirection: Axis.horizontal,
+          child: Row(
+            children: ['All', 'Work', 'Personal', 'Fitness', 'Study'].map((cat) {
+              final selected = provider.selectedCategory == cat;
+              return Padding(
+                padding: const EdgeInsets.only(right: 8.0),
+                child: Pressable(
+                  onTap: () => provider.setCategoryFilter(cat),
+                  child: AnimatedContainer(
+                    duration: const Duration(milliseconds: 250),
+                    padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 9),
+                    decoration: BoxDecoration(
+                      color: selected ? Colors.white : Colors.white.withValues(alpha: 0.16),
+                      borderRadius: BorderRadius.circular(20),
+                      border: Border.all(color: Colors.white.withValues(alpha: 0.45)),
+                    ),
+                    child: Text(cat, style: TextStyle(color: selected ? AppColors.royal : Colors.white, fontWeight: FontWeight.w700, fontSize: 13)),
+                  ),
+                ),
+              );
+            }).toList(),
+          ),
+        ),
+      ],
+    );
+  }
+}
+
+/// The task list as slivers, for the Plan tab's scroll view.
+class TasksSliver extends StatelessWidget {
+  const TasksSliver({super.key});
 
   @override
   Widget build(BuildContext context) {
     final provider = Provider.of<TaskProvider>(context);
     final tasksList = provider.tasks;
 
-    return Scaffold(
-      backgroundColor: Colors.transparent,
-      extendBody: true,
-      body: CustomScrollView(
-        slivers: [
-          SliverToBoxAdapter(
-            child: LiquidHeader(
-              title: 'Task Planner',
-              subtitle: '${provider.completedCount} of ${provider.totalCount} done today',
-              actions: [
-                SizedBox(
-                  width: 54,
-                  height: 54,
-                  child: TweenAnimationBuilder<double>(
-                    tween: Tween(begin: 0, end: provider.totalCount == 0 ? 0 : provider.completedCount / provider.totalCount),
-                    duration: const Duration(milliseconds: 900),
-                    curve: Curves.easeOutCubic,
-                    builder: (context, v, _) => CircularProgressIndicator(
-                      value: v,
-                      strokeWidth: 5,
-                      strokeCap: StrokeCap.round,
-                      color: AppColors.pink,
-                      backgroundColor: Colors.white.withValues(alpha: 0.25),
-                    ),
-                  ),
-                ),
-              ],
-              bottom: Column(
-                children: [
-                  TextField(
-                    onChanged: provider.setSearchQuery,
-                    style: const TextStyle(color: Colors.white),
-                    cursorColor: Colors.white,
-                    decoration: InputDecoration(
-                      hintText: 'Search tasks...',
-                      hintStyle: TextStyle(color: Colors.white.withValues(alpha: 0.75)),
-                      prefixIcon: const Icon(Icons.search_rounded, color: Colors.white),
-                      fillColor: Colors.white.withValues(alpha: 0.18),
-                      enabledBorder: OutlineInputBorder(
-                        borderRadius: BorderRadius.circular(18),
-                        borderSide: BorderSide(color: Colors.white.withValues(alpha: 0.4)),
-                      ),
-                      focusedBorder: OutlineInputBorder(
-                        borderRadius: BorderRadius.circular(18),
-                        borderSide: const BorderSide(color: Colors.white, width: 1.5),
-                      ),
-                    ),
-                  ),
-                  const SizedBox(height: 14),
-                  SingleChildScrollView(
-                    scrollDirection: Axis.horizontal,
-                    child: Row(
-                      children: ['All', 'Work', 'Personal', 'Fitness', 'Study'].map((cat) {
-                        final selected = provider.selectedCategory == cat;
-                        return Padding(
-                          padding: const EdgeInsets.only(right: 8.0),
-                          child: Pressable(
-                            onTap: () => provider.setCategoryFilter(cat),
-                            child: AnimatedContainer(
-                              duration: const Duration(milliseconds: 250),
-                              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 9),
-                              decoration: BoxDecoration(
-                                color: selected ? Colors.white : Colors.white.withValues(alpha: 0.16),
-                                borderRadius: BorderRadius.circular(20),
-                                border: Border.all(color: Colors.white.withValues(alpha: 0.45)),
-                              ),
-                              child: Text(
-                                cat,
-                                style: TextStyle(color: selected ? AppColors.royal : Colors.white, fontWeight: FontWeight.w700, fontSize: 13),
-                              ),
-                            ),
-                          ),
-                        );
-                      }).toList(),
-                    ),
-                  ),
-                ],
-              ),
-            ),
+    if (tasksList.isEmpty) {
+      return SliverFillRemaining(
+        hasScrollBody: false,
+        child: Padding(
+          padding: const EdgeInsets.only(bottom: 110),
+          child: EmptyStateWidget(
+            icon: Icons.assignment_turned_in_rounded,
+            illustration: IllustrationKind.tasks,
+            title: provider.totalCount == 0 ? 'Plan your first task' : 'No matching tasks',
+            description: provider.totalCount == 0
+                ? 'Tasks are one-off things to get done, like "Buy groceries" or "Finish report". Tick them off as you go.'
+                : 'Try a different search or category.',
+            buttonText: provider.totalCount == 0 ? 'Add a task' : null,
+            onButtonPressed: () => showAddTaskSheet(context),
           ),
-          if (tasksList.isEmpty)
-            SliverFillRemaining(
-              hasScrollBody: false,
-              child: Padding(
-                padding: const EdgeInsets.only(bottom: 110),
-                child: EmptyStateWidget(
-                  icon: Icons.assignment_turned_in_rounded,
-                  title: 'No Tasks Found',
-                  description: 'Stay on top of your day by creating your first task!',
-                  buttonText: 'Add Task',
-                  onButtonPressed: () => showAddTaskSheet(context),
-                ),
-              ),
-            )
-          else
-            SliverPadding(
-              padding: const EdgeInsets.fromLTRB(20, 4, 20, 130),
-              sliver: SliverList(
-                delegate: SliverChildBuilderDelegate(
-                  (context, index) {
-                    final task = tasksList[index];
-                    return StaggerIn(
-                      key: ValueKey(task.id),
-                      index: index,
-                      child: _TaskCard(task: task, provider: provider),
-                    );
-                  },
-                  childCount: tasksList.length,
-                ),
-              ),
-            ),
+        ),
+      );
+    }
+
+    return SliverPadding(
+      padding: const EdgeInsets.fromLTRB(20, 4, 20, 130),
+      sliver: SliverList(
+        delegate: SliverChildBuilderDelegate(
+          (context, index) {
+            if (index == 0) return const _Hint('Tap the circle when a task is done. Swipe left to delete.');
+            final task = tasksList[index - 1];
+            return StaggerIn(
+              key: ValueKey(task.id),
+              index: index,
+              child: _TaskCard(task: task, provider: provider),
+            );
+          },
+          childCount: tasksList.length + 1,
+        ),
+      ),
+    );
+  }
+}
+
+class _Hint extends StatelessWidget {
+  final String text;
+
+  const _Hint(this.text);
+
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 12, left: 4),
+      child: Row(
+        children: [
+          Icon(Icons.lightbulb_outline_rounded, size: 16, color: Theme.of(context).textTheme.bodyMedium?.color),
+          const SizedBox(width: 6),
+          Expanded(child: Text(text, style: Theme.of(context).textTheme.bodyMedium?.copyWith(fontSize: 12.5))),
         ],
       ),
     );
@@ -233,6 +236,11 @@ class _TaskCard extends StatelessWidget {
 
   const _TaskCard({required this.task, required this.provider});
 
+  void _delete(BuildContext context) {
+    provider.deleteTask(task.id);
+    showUndoSnackBar(context, 'Task deleted', () => provider.addTask(task));
+  }
+
   @override
   Widget build(BuildContext context) {
     final color = priorityColor(task.priority);
@@ -243,7 +251,7 @@ class _TaskCard extends StatelessWidget {
       child: Dismissible(
         key: Key(task.id),
         direction: DismissDirection.endToStart,
-        onDismissed: (_) => provider.deleteTask(task.id),
+        onDismissed: (_) => _delete(context),
         background: Container(
           alignment: Alignment.centerRight,
           padding: const EdgeInsets.only(right: 24),
@@ -300,7 +308,8 @@ class _TaskCard extends StatelessWidget {
               ),
               IconButton(
                 icon: Icon(Icons.delete_outline_rounded, color: secondary),
-                onPressed: () => provider.deleteTask(task.id),
+                tooltip: 'Delete task',
+                onPressed: () => _delete(context),
               ),
             ],
           ),

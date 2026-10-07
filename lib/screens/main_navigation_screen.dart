@@ -4,7 +4,7 @@ import 'tabs/tasks_tab.dart';
 import 'tabs/habits_tab.dart';
 import 'tabs/journal_tab.dart';
 import 'tabs/goals_tab.dart';
-import 'profile_screen.dart';
+import 'tabs/plan_tab.dart';
 import 'statistics_screen.dart';
 import '../theme/app_colors.dart';
 import '../widgets/liquid/liquid.dart';
@@ -20,12 +20,10 @@ class _MainNavigationScreenState extends State<MainNavigationScreen> {
   int _currentIndex = 0;
 
   static const _items = [
-    LiquidNavItem(Icons.space_dashboard_rounded, 'Dashboard'),
-    LiquidNavItem(Icons.checklist_rounded, 'Tasks'),
+    LiquidNavItem(Icons.home_rounded, 'Home'),
+    LiquidNavItem(Icons.event_note_rounded, 'Plan'),
     LiquidNavItem(Icons.loop_rounded, 'Habits'),
     LiquidNavItem(Icons.auto_stories_rounded, 'Journal'),
-    LiquidNavItem(Icons.flag_rounded, 'Goals'),
-    LiquidNavItem(Icons.person_rounded, 'Profile'),
   ];
 
   void _onTabTapped(int index) {
@@ -44,13 +42,11 @@ class _MainNavigationScreenState extends State<MainNavigationScreen> {
   Future<void> _onCenterTap() async {
     switch (_currentIndex) {
       case 1:
-        await showAddTaskSheet(context);
+        await (planSegment.value == 0 ? showAddTaskSheet(context) : showAddGoalSheet(context));
       case 2:
         await showAddHabitSheet(context);
       case 3:
         await showJournalSheet(context);
-      case 4:
-        await showAddGoalSheet(context);
       default:
         await _showQuickAdd();
     }
@@ -58,15 +54,16 @@ class _MainNavigationScreenState extends State<MainNavigationScreen> {
   }
 
   Future<void> _showQuickAdd() {
+    // (icon, title, description, tab, plan segment, opener)
     final options = [
-      (Icons.add_task_rounded, 'Task', 'Plan something for today', 1, showAddTaskSheet),
-      (Icons.loop_rounded, 'Habit', 'Build a daily streak', 2, showAddHabitSheet),
-      (Icons.edit_note_rounded, 'Journal', 'Capture a reflection', 3, showJournalSheet),
-      (Icons.flag_rounded, 'Goal', 'Aim for something big', 4, showAddGoalSheet),
+      (Icons.add_task_rounded, 'Task', 'Something to get done today', 1, 0, showAddTaskSheet),
+      (Icons.loop_rounded, 'Habit', 'Something to repeat every day', 2, 0, showAddHabitSheet),
+      (Icons.flag_rounded, 'Goal', 'Something big to work toward over weeks', 1, 1, showAddGoalSheet),
+      (Icons.edit_note_rounded, 'Journal entry', 'Write about your day', 3, 0, showJournalSheet),
     ];
     return showLiquidSheet(
       context: context,
-      title: 'Create New',
+      title: 'What would you like to add?',
       builder: (sheetContext) => Column(
         children: [
           for (var i = 0; i < options.length; i++)
@@ -77,7 +74,8 @@ class _MainNavigationScreenState extends State<MainNavigationScreen> {
                 highlighted: true,
                 onTap: () async {
                   Navigator.pop(sheetContext);
-                  final (_, _, _, tab, open) = options[i];
+                  final (_, _, _, tab, segment, open) = options[i];
+                  if (tab == 1) planSegment.value = segment;
                   setState(() => _currentIndex = tab);
                   await open(context);
                   if (mounted) setState(() {});
@@ -115,11 +113,9 @@ class _MainNavigationScreenState extends State<MainNavigationScreen> {
   Widget build(BuildContext context) {
     final List<Widget> tabs = [
       DashboardTab(onNavigateTab: _onTabTapped),
-      const TasksTab(),
+      const PlanTab(),
       const HabitsTab(),
       const JournalTab(),
-      const GoalsTab(),
-      const ProfileScreen(),
     ];
 
     return Scaffold(

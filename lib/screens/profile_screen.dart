@@ -4,6 +4,7 @@ import '../services/hive_service.dart';
 import '../theme/app_colors.dart';
 import '../main.dart';
 import '../widgets/liquid/liquid.dart';
+import 'statistics_screen.dart';
 
 class ProfileScreen extends StatefulWidget {
   const ProfileScreen({super.key});
@@ -51,7 +52,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
     await box.put('userName', 'User');
     if (mounted) {
       // ignore: use_build_context_synchronously
-      Navigator.of(context).pushReplacementNamed('/login');
+      Navigator.of(context).pushNamedAndRemoveUntil('/login', (_) => false);
     }
   }
 
@@ -62,161 +63,194 @@ class _ProfileScreenState extends State<ProfileScreen> {
     final xpNeeded = _level * 100;
     final xpProgress = _xp / xpNeeded;
 
-    return SingleChildScrollView(
-      padding: const EdgeInsets.only(bottom: 130),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.stretch,
-        children: [
-          AnimatedWaveClip(
-            edge: WaveEdge.bottom,
-            depth: 28,
-            ripple: 3,
-            child: LiquidBackground(
-              child: SafeArea(
-                bottom: false,
-                child: Padding(
-                  padding: const EdgeInsets.fromLTRB(20, 24, 20, 56),
-                  child: Column(
-                    children: [
-                      Floating(
-                        distance: 6,
-                        child: Container(
-                          width: 96,
-                          height: 96,
-                          alignment: Alignment.center,
-                          decoration: BoxDecoration(
-                            shape: BoxShape.circle,
-                            gradient: AppColors.ringCenterGradient,
-                            border: Border.all(color: Colors.white, width: 3),
-                            boxShadow: [BoxShadow(color: AppColors.navy.withValues(alpha: 0.35), blurRadius: 24, offset: const Offset(0, 10))],
-                          ),
-                          child: Text(
-                            _userName.isNotEmpty ? _userName[0].toUpperCase() : 'U',
-                            style: const TextStyle(fontSize: 40, color: AppColors.navy, fontWeight: FontWeight.w800),
-                          ),
-                        ),
-                      ),
-                      const SizedBox(height: 14),
-                      Text(_userName, style: const TextStyle(color: Colors.white, fontSize: 24, fontWeight: FontWeight.w800)),
-                      const SizedBox(height: 4),
-                      Text('Productivity Enthusiast', style: TextStyle(color: Colors.white.withValues(alpha: 0.8), fontWeight: FontWeight.w500)),
-                    ],
-                  ),
-                ),
-              ),
-            ),
-          ),
-          Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 20),
-            child: Column(
-              children: [
-                // Gamified Profile stats Card
-                StaggerIn(
-                  child: GlassCard(
-                    child: Column(
-                      children: [
-                        Row(
-                          children: [
-                            Expanded(child: Text('Level $_level Hero 🛡️', style: textTheme.titleMedium?.copyWith(fontSize: 16, color: isDark ? AppColors.sky : AppColors.royal))),
-                            Text('$_xp / $xpNeeded XP', style: textTheme.bodyMedium?.copyWith(fontWeight: FontWeight.w700)),
-                          ],
-                        ),
-                        const SizedBox(height: 10),
-                        LayoutBuilder(
-                          builder: (context, c) => Stack(
-                            children: [
-                              Container(
-                                height: 10,
-                                decoration: BoxDecoration(
-                                  color: isDark ? Colors.white.withValues(alpha: 0.08) : const Color(0xFFE3E6F5),
-                                  borderRadius: BorderRadius.circular(10),
-                                ),
-                              ),
-                              TweenAnimationBuilder<double>(
-                                tween: Tween(begin: 0, end: xpProgress.clamp(0.0, 1.0)),
-                                duration: const Duration(milliseconds: 1000),
-                                curve: Curves.easeOutCubic,
-                                builder: (context, v, _) => Container(
-                                  height: 10,
-                                  width: c.maxWidth * v,
-                                  decoration: BoxDecoration(gradient: AppColors.primaryGradient, borderRadius: BorderRadius.circular(10)),
-                                ),
-                              ),
-                            ],
-                          ),
-                        ),
-                        const SizedBox(height: 18),
-                        Row(
-                          children: [
-                            Expanded(child: _StatTile(icon: Icons.ac_unit_rounded, color: AppColors.sky, value: _freezers, label: 'Streak Shields')),
-                            const SizedBox(width: 12),
-                            Expanded(child: _StatTile(icon: Icons.autorenew_rounded, color: AppColors.accent, value: _restoreTokens, label: 'Streak Restores')),
-                          ],
-                        ),
-                      ],
-                    ),
-                  ),
-                ),
-                const SizedBox(height: 16),
-                StaggerIn(
-                  index: 1,
-                  child: GlassCard(
-                    padding: const EdgeInsets.symmetric(vertical: 6),
-                    child: Column(
-                      children: [
-                        _SettingRow(
-                          icon: Icons.dark_mode_rounded,
-                          color: AppColors.violet,
-                          title: 'Dark Mode Theme',
-                          trailing: Switch(value: isDark, onChanged: _toggleDarkMode),
-                          onTap: () => _toggleDarkMode(!isDark),
-                        ),
-                        _SettingRow(
-                          icon: Icons.cloud_done_rounded,
-                          color: AppColors.sky,
-                          title: 'Local Hive Backup',
-                          subtitle: 'Data is synced 100% offline',
-                          onTap: () {},
-                        ),
-                        _SettingRow(
-                          icon: Icons.info_outline_rounded,
-                          color: AppColors.accent,
-                          title: 'About Life Dashboard',
-                          subtitle: 'Version 1.0.0 • Vortex Tech Week 4',
-                          onTap: () {},
-                        ),
-                      ],
-                    ),
-                  ),
-                ),
-                const SizedBox(height: 24),
-                StaggerIn(
-                  index: 2,
-                  child: Pressable(
-                    onTap: _logOut,
-                    child: Container(
-                      height: 54,
-                      alignment: Alignment.center,
-                      decoration: BoxDecoration(
-                        color: AppColors.danger.withValues(alpha: 0.1),
-                        borderRadius: BorderRadius.circular(20),
-                        border: Border.all(color: AppColors.danger.withValues(alpha: 0.4)),
-                      ),
-                      child: const Row(
-                        mainAxisSize: MainAxisSize.min,
+    return Scaffold(
+      body: AmbientBackground(
+        child: SingleChildScrollView(
+          padding: const EdgeInsets.only(bottom: 40),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              AnimatedWaveClip(
+                edge: WaveEdge.bottom,
+                depth: 28,
+                ripple: 3,
+                child: LiquidBackground(
+                  child: SafeArea(
+                    bottom: false,
+                    child: Padding(
+                      padding: const EdgeInsets.fromLTRB(20, 12, 20, 56),
+                      child: Column(
                         children: [
-                          Icon(Icons.logout_rounded, color: AppColors.danger),
-                          SizedBox(width: 8),
-                          Text('Log Out', style: TextStyle(fontWeight: FontWeight.w800, color: AppColors.danger)),
+                          Align(
+                            alignment: Alignment.centerLeft,
+                            child: GlassIconButton(icon: Icons.arrow_back_rounded, onTap: () => Navigator.of(context).maybePop()),
+                          ),
+                          Floating(
+                            distance: 6,
+                            child: Container(
+                              width: 96,
+                              height: 96,
+                              alignment: Alignment.center,
+                              decoration: BoxDecoration(
+                                shape: BoxShape.circle,
+                                gradient: AppColors.ringCenterGradient,
+                                border: Border.all(color: Colors.white, width: 3),
+                                boxShadow: [BoxShadow(color: AppColors.navy.withValues(alpha: 0.35), blurRadius: 24, offset: const Offset(0, 10))],
+                              ),
+                              child: Text(
+                                _userName.isNotEmpty ? _userName[0].toUpperCase() : 'U',
+                                style: const TextStyle(fontSize: 40, color: AppColors.navy, fontWeight: FontWeight.w800),
+                              ),
+                            ),
+                          ),
+                          const SizedBox(height: 14),
+                          Text(
+                            _userName,
+                            style: const TextStyle(color: Colors.white, fontSize: 24, fontWeight: FontWeight.w800),
+                          ),
+                          const SizedBox(height: 4),
+                          Text(
+                            'Productivity Enthusiast',
+                            style: TextStyle(color: Colors.white.withValues(alpha: 0.8), fontWeight: FontWeight.w500),
+                          ),
                         ],
                       ),
                     ),
                   ),
                 ),
-              ],
-            ),
+              ),
+              Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 20),
+                child: Column(
+                  children: [
+                    // Gamified Profile stats Card
+                    StaggerIn(
+                      child: GlassCard(
+                        child: Column(
+                          children: [
+                            Row(
+                              children: [
+                                Expanded(
+                                  child: Text(
+                                    'Level $_level Hero 🛡️',
+                                    style: textTheme.titleMedium?.copyWith(fontSize: 16, color: isDark ? AppColors.sky : AppColors.royal),
+                                  ),
+                                ),
+                                Text('$_xp / $xpNeeded XP', style: textTheme.bodyMedium?.copyWith(fontWeight: FontWeight.w700)),
+                              ],
+                            ),
+                            const SizedBox(height: 10),
+                            LayoutBuilder(
+                              builder: (context, c) => Stack(
+                                children: [
+                                  Container(
+                                    height: 10,
+                                    decoration: BoxDecoration(
+                                      color: isDark ? Colors.white.withValues(alpha: 0.08) : const Color(0xFFE3E6F5),
+                                      borderRadius: BorderRadius.circular(10),
+                                    ),
+                                  ),
+                                  TweenAnimationBuilder<double>(
+                                    tween: Tween(begin: 0, end: xpProgress.clamp(0.0, 1.0)),
+                                    duration: const Duration(milliseconds: 1000),
+                                    curve: Curves.easeOutCubic,
+                                    builder: (context, v, _) => Container(
+                                      height: 10,
+                                      width: c.maxWidth * v,
+                                      decoration: BoxDecoration(gradient: AppColors.primaryGradient, borderRadius: BorderRadius.circular(10)),
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            ),
+                            const SizedBox(height: 18),
+                            Row(
+                              children: [
+                                Expanded(
+                                  child: _StatTile(icon: Icons.ac_unit_rounded, color: AppColors.sky, value: _freezers, label: 'Streak Shields'),
+                                ),
+                                const SizedBox(width: 12),
+                                Expanded(
+                                  child: _StatTile(icon: Icons.autorenew_rounded, color: AppColors.accent, value: _restoreTokens, label: 'Streak Restores'),
+                                ),
+                              ],
+                            ),
+                          ],
+                        ),
+                      ),
+                    ),
+                    const SizedBox(height: 16),
+                    StaggerIn(
+                      index: 1,
+                      child: GlassCard(
+                        padding: const EdgeInsets.symmetric(vertical: 6),
+                        child: Column(
+                          children: [
+                            _SettingRow(
+                              icon: Icons.dark_mode_rounded,
+                              color: AppColors.violet,
+                              title: 'Dark Mode Theme',
+                              trailing: Switch(value: isDark, onChanged: _toggleDarkMode),
+                              onTap: () => _toggleDarkMode(!isDark),
+                            ),
+                            _SettingRow(
+                              icon: Icons.bar_chart_rounded,
+                              color: AppColors.royal,
+                              title: 'Your Progress',
+                              subtitle: 'Stats for tasks, habits, journal and goals',
+                              onTap: () => Navigator.push(context, MaterialPageRoute(builder: (_) => const StatisticsScreen())),
+                            ),
+                            _SettingRow(
+                              icon: Icons.cloud_done_rounded,
+                              color: AppColors.sky,
+                              title: 'Local Hive Backup',
+                              subtitle: 'Data is synced 100% offline',
+                              onTap: () {},
+                            ),
+                            _SettingRow(
+                              icon: Icons.info_outline_rounded,
+                              color: AppColors.accent,
+                              title: 'About Life',
+                              subtitle: 'Version 1.0.0 • Vortex Tech Week 4',
+                              onTap: () {},
+                            ),
+                          ],
+                        ),
+                      ),
+                    ),
+                    const SizedBox(height: 24),
+                    StaggerIn(
+                      index: 2,
+                      child: Pressable(
+                        onTap: _logOut,
+                        child: Container(
+                          height: 54,
+                          alignment: Alignment.center,
+                          decoration: BoxDecoration(
+                            color: AppColors.danger.withValues(alpha: 0.1),
+                            borderRadius: BorderRadius.circular(20),
+                            border: Border.all(color: AppColors.danger.withValues(alpha: 0.4)),
+                          ),
+                          child: const Row(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              Icon(Icons.logout_rounded, color: AppColors.danger),
+                              SizedBox(width: 8),
+                              Text(
+                                'Log Out',
+                                style: TextStyle(fontWeight: FontWeight.w800, color: AppColors.danger),
+                              ),
+                            ],
+                          ),
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ],
           ),
-        ],
+        ),
       ),
     );
   }
@@ -239,7 +273,10 @@ class _StatTile extends StatelessWidget {
         children: [
           Icon(icon, color: color, size: 26),
           const SizedBox(height: 6),
-          CountUpText(value: value, style: const TextStyle(fontWeight: FontWeight.w800, fontSize: 20)),
+          CountUpText(
+            value: value,
+            style: const TextStyle(fontWeight: FontWeight.w800, fontSize: 20),
+          ),
           Text(label, style: Theme.of(context).textTheme.bodyMedium?.copyWith(fontSize: 11.5, fontWeight: FontWeight.w600)),
         ],
       ),

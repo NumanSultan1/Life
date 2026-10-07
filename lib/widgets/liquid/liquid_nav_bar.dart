@@ -42,11 +42,11 @@ class LiquidNavBar extends StatelessWidget {
               period: const Duration(seconds: 8),
               child: Container(
                 decoration: const BoxDecoration(gradient: AppColors.navGradient),
-                padding: EdgeInsets.only(top: 26, bottom: bottomInset + 6, left: 8, right: 8),
+                padding: EdgeInsets.only(top: 22, bottom: bottomInset + 4, left: 8, right: 8),
                 child: Row(
                   children: [
                     for (var i = 0; i < half; i++) item(i),
-                    const SizedBox(width: 68),
+                    const SizedBox(width: 76),
                     for (var i = half; i < items.length; i++) item(i),
                   ],
                 ),
@@ -83,17 +83,27 @@ class _NavIcon extends StatelessWidget {
               scale: selected ? 1.18 : 1,
               duration: const Duration(milliseconds: 300),
               curve: Curves.easeOutBack,
-              child: Icon(item.icon, color: Colors.white.withValues(alpha: selected ? 1 : 0.55), size: 24),
+              child: Icon(item.icon, color: Colors.white.withValues(alpha: selected ? 1 : 0.6), size: 23),
             ),
-            const SizedBox(height: 6),
+            const SizedBox(height: 4),
+            AnimatedDefaultTextStyle(
+              duration: const Duration(milliseconds: 250),
+              style: TextStyle(
+                color: selected ? Colors.white : Colors.white.withValues(alpha: 0.6),
+                fontSize: 11,
+                fontWeight: selected ? FontWeight.w800 : FontWeight.w600,
+              ),
+              child: Text(item.label, maxLines: 1),
+            ),
+            const SizedBox(height: 3),
             AnimatedContainer(
               duration: const Duration(milliseconds: 300),
               curve: Curves.easeOutBack,
-              width: selected ? 18 : 0,
-              height: 4,
+              width: selected ? 16 : 0,
+              height: 3,
               decoration: BoxDecoration(
                 color: AppColors.pink,
-                borderRadius: BorderRadius.circular(4),
+                borderRadius: BorderRadius.circular(3),
                 boxShadow: selected ? [BoxShadow(color: AppColors.pink.withValues(alpha: 0.8), blurRadius: 8)] : null,
               ),
             ),

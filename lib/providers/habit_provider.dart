@@ -82,6 +82,8 @@ class HabitProvider extends ChangeNotifier {
         await HiveService.addXp(15);
       } else {
         newStreak = h.streak > 0 ? h.streak - 1 : 0;
+        // Take back the XP so toggling can't farm it
+        await HiveService.addXp(-15);
       }
 
       final newLongest = newStreak > h.longestStreak ? newStreak : h.longestStreak;

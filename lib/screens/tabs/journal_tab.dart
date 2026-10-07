@@ -7,6 +7,7 @@ import '../../models/journal_entry.dart';
 import '../../theme/app_colors.dart';
 import '../../widgets/common/empty_state.dart';
 import '../../widgets/liquid/liquid.dart';
+import '../../widgets/illustrations.dart';
 
 const _prompts = [
   "What is one thing that made you smile today? 😊",
@@ -110,11 +111,11 @@ class JournalTab extends StatelessWidget {
           SliverToBoxAdapter(
             child: LiquidHeader(
               title: 'Journal',
-              subtitle: 'Reflections & thoughts · ${journalList.length} entries',
+              subtitle: 'Write about your day · ${journalList.length} entries',
               actions: [
-                GlassIconButton(
-                  icon: Icons.star_rounded,
-                  onTap: provider.toggleShowFavoritesOnly,
+                Tooltip(
+                  message: 'Show favorites only',
+                  child: GlassIconButton(icon: Icons.star_rounded, onTap: provider.toggleShowFavoritesOnly),
                 ),
               ],
               bottom: TextField(
@@ -145,9 +146,10 @@ class JournalTab extends StatelessWidget {
                 padding: const EdgeInsets.only(bottom: 110),
                 child: EmptyStateWidget(
                   icon: Icons.auto_stories_rounded,
-                  title: 'No Journal Entries',
-                  description: 'Record your daily thoughts and reflections.',
-                  buttonText: 'Write Entry',
+                  illustration: IllustrationKind.journal,
+                  title: 'Write your first entry',
+                  description: 'A few lines about your day helps you notice what went well. Tap "Inspire Me" if you need an idea.',
+                  buttonText: 'Write an entry',
                   onButtonPressed: () => showJournalSheet(context),
                 ),
               ),

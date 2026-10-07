@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import '../../theme/app_colors.dart';
 import '../liquid/liquid.dart';
+import '../illustrations.dart';
 
 class EmptyStateWidget extends StatelessWidget {
   final IconData icon;
@@ -8,6 +9,7 @@ class EmptyStateWidget extends StatelessWidget {
   final String description;
   final String? buttonText;
   final VoidCallback? onButtonPressed;
+  final IllustrationKind? illustration;
 
   const EmptyStateWidget({
     super.key,
@@ -16,6 +18,7 @@ class EmptyStateWidget extends StatelessWidget {
     required this.description,
     this.buttonText,
     this.onButtonPressed,
+    this.illustration,
   });
 
   @override
@@ -29,21 +32,24 @@ class EmptyStateWidget extends StatelessWidget {
           child: Column(
             mainAxisAlignment: MainAxisAlignment.center,
             children: [
-              Floating(
-                child: Container(
-                  width: 110,
-                  height: 110,
-                  decoration: BoxDecoration(
-                    shape: BoxShape.circle,
-                    boxShadow: [BoxShadow(color: AppColors.royal.withValues(alpha: 0.3), blurRadius: 30, offset: const Offset(0, 14))],
-                  ),
-                  child: ClipOval(
-                    child: LiquidBackground(
-                      child: Center(child: Icon(icon, size: 48, color: Colors.white)),
+              if (illustration != null)
+                Illustration(illustration!, size: 190)
+              else
+                Floating(
+                  child: Container(
+                    width: 110,
+                    height: 110,
+                    decoration: BoxDecoration(
+                      shape: BoxShape.circle,
+                      boxShadow: [BoxShadow(color: AppColors.royal.withValues(alpha: 0.3), blurRadius: 30, offset: const Offset(0, 14))],
+                    ),
+                    child: ClipOval(
+                      child: LiquidBackground(
+                        child: Center(child: Icon(icon, size: 48, color: Colors.white)),
+                      ),
                     ),
                   ),
                 ),
-              ),
               const SizedBox(height: 24),
               Text(title, style: textTheme.titleLarge?.copyWith(fontSize: 20), textAlign: TextAlign.center),
               const SizedBox(height: 8),

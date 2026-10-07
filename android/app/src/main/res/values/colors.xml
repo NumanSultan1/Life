@@ -1,0 +1,5 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- Brand royal blue, matching the Flutter splash screen. -->
+    <color name="splash_background">#0B47C8</color>
+</resources>

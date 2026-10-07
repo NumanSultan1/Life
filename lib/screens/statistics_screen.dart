@@ -6,6 +6,7 @@ import '../providers/journal_provider.dart';
 import '../services/hive_service.dart';
 import '../theme/app_colors.dart';
 import '../widgets/liquid/liquid.dart';
+import '../widgets/illustrations.dart';
 
 class StatisticsScreen extends StatelessWidget {
   const StatisticsScreen({super.key});
@@ -39,9 +40,10 @@ class StatisticsScreen extends StatelessWidget {
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
               LiquidHeader(
-                title: 'Live Analytics',
-                subtitle: 'Your productivity at a glance',
+                title: 'Your Progress',
+                subtitle: 'How you are doing across the app',
                 leading: GlassIconButton(icon: Icons.arrow_back_rounded, onTap: () => Navigator.pop(context)),
+                actions: const [Illustration(IllustrationKind.stats, size: 70)],
               ),
               Padding(
                 padding: const EdgeInsets.fromLTRB(20, 0, 20, 40),
