@@ -6,6 +6,7 @@ import '../../models/habit.dart';
 import '../../theme/app_colors.dart';
 import '../../services/hive_service.dart';
 import '../../widgets/common/empty_state.dart';
+import '../../widgets/common/milestone_dialog.dart';
 
 class HabitsTab extends StatelessWidget {
   const HabitsTab({super.key});
@@ -262,7 +263,7 @@ class HabitsTab extends StatelessWidget {
                                   Row(
                                     children: [
                                       GestureDetector(
-                                        onTap: () => provider.toggleHabitCompletion(habit.id),
+                                        onTap: () => toggleHabitWithMilestone(context, habit),
                                         child: Container(
                                           padding: const EdgeInsets.all(12),
                                           decoration: BoxDecoration(
