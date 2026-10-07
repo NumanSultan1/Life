@@ -3,6 +3,7 @@ import 'package:hive_flutter/hive_flutter.dart';
 import '../services/hive_service.dart';
 import '../theme/app_colors.dart';
 import '../main.dart';
+import '../widgets/liquid/liquid.dart';
 
 class ProfileScreen extends StatefulWidget {
   const ProfileScreen({super.key});
@@ -43,145 +44,245 @@ class _ProfileScreenState extends State<ProfileScreen> {
     setState(() {});
   }
 
+  Future<void> _logOut() async {
+    final box = Hive.box(HiveService.settingsBox);
+    await box.put('isLoggedIn', false);
+    await box.put('currentUser', '');
+    await box.put('userName', 'User');
+    if (mounted) {
+      // ignore: use_build_context_synchronously
+      Navigator.of(context).pushReplacementNamed('/login');
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     final isDark = Theme.of(context).brightness == Brightness.dark;
+    final textTheme = Theme.of(context).textTheme;
     final xpNeeded = _level * 100;
     final xpProgress = _xp / xpNeeded;
 
-    return SafeArea(
-      child: SingleChildScrollView(
-        padding: const EdgeInsets.all(20.0),
-        child: Column(
-          children: [
-            CircleAvatar(
-              radius: 48,
-              backgroundColor: AppColors.primary,
-              child: Text(
-                _userName.isNotEmpty ? _userName[0].toUpperCase() : 'U',
-                style: const TextStyle(fontSize: 40, color: Colors.white, fontWeight: FontWeight.bold),
-              ),
-            ),
-            const SizedBox(height: 12),
-            Text(
-              _userName,
-              style: Theme.of(context).textTheme.titleLarge?.copyWith(fontSize: 22, fontWeight: FontWeight.bold),
-            ),
-            const Text('Productivity Enthusiast', style: TextStyle(color: Colors.grey)),
-            const SizedBox(height: 16),
-
-            // Gamified Profile stats Card
-            Card(
-              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
-              elevation: 4,
-              child: Padding(
-                padding: const EdgeInsets.all(18.0),
-                child: Column(
-                  children: [
-                    Row(
-                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                      children: [
-                        Text(
-                          'Level $_level Hero 🛡️',
-                          style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16, color: AppColors.primary),
+    return SingleChildScrollView(
+      padding: const EdgeInsets.only(bottom: 130),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          AnimatedWaveClip(
+            edge: WaveEdge.bottom,
+            depth: 28,
+            ripple: 3,
+            child: LiquidBackground(
+              child: SafeArea(
+                bottom: false,
+                child: Padding(
+                  padding: const EdgeInsets.fromLTRB(20, 24, 20, 56),
+                  child: Column(
+                    children: [
+                      Floating(
+                        distance: 6,
+                        child: Container(
+                          width: 96,
+                          height: 96,
+                          alignment: Alignment.center,
+                          decoration: BoxDecoration(
+                            shape: BoxShape.circle,
+                            gradient: AppColors.ringCenterGradient,
+                            border: Border.all(color: Colors.white, width: 3),
+                            boxShadow: [BoxShadow(color: AppColors.navy.withValues(alpha: 0.35), blurRadius: 24, offset: const Offset(0, 10))],
+                          ),
+                          child: Text(
+                            _userName.isNotEmpty ? _userName[0].toUpperCase() : 'U',
+                            style: const TextStyle(fontSize: 40, color: AppColors.navy, fontWeight: FontWeight.w800),
+                          ),
                         ),
-                        Text(
-                          '$_xp / $xpNeeded XP',
-                          style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 14, color: Colors.grey),
-                        ),
-                      ],
-                    ),
-                    const SizedBox(height: 8),
-                    ClipRRect(
-                      borderRadius: BorderRadius.circular(8),
-                      child: LinearProgressIndicator(
-                        value: xpProgress,
-                        minHeight: 10,
-                        backgroundColor: Colors.grey.shade200,
-                        valueColor: const AlwaysStoppedAnimation<Color>(AppColors.primary),
                       ),
-                    ),
-                    const SizedBox(height: 16),
-                    Row(
-                      mainAxisAlignment: MainAxisAlignment.spaceAround,
-                      children: [
-                        Column(
-                          children: [
-                            const Icon(Icons.ac_unit_rounded, color: Colors.blueAccent, size: 28),
-                            const SizedBox(height: 4),
-                            Text('$_freezers Freezers', style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 13)),
-                            const Text('Streak Shields', style: TextStyle(color: Colors.grey, fontSize: 11)),
-                          ],
-                        ),
-                        Column(
-                          children: [
-                            const Icon(Icons.autorenew_rounded, color: Colors.teal, size: 28),
-                            const SizedBox(height: 4),
-                            Text('$_restoreTokens Tokens', style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 13)),
-                            const Text('Streak Restores', style: TextStyle(color: Colors.grey, fontSize: 11)),
-                          ],
-                        ),
-                      ],
-                    ),
-                  ],
+                      const SizedBox(height: 14),
+                      Text(_userName, style: const TextStyle(color: Colors.white, fontSize: 24, fontWeight: FontWeight.w800)),
+                      const SizedBox(height: 4),
+                      Text('Productivity Enthusiast', style: TextStyle(color: Colors.white.withValues(alpha: 0.8), fontWeight: FontWeight.w500)),
+                    ],
+                  ),
                 ),
               ),
             ),
-            const SizedBox(height: 16),
+          ),
+          Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 20),
+            child: Column(
+              children: [
+                // Gamified Profile stats Card
+                StaggerIn(
+                  child: GlassCard(
+                    child: Column(
+                      children: [
+                        Row(
+                          children: [
+                            Expanded(child: Text('Level $_level Hero 🛡️', style: textTheme.titleMedium?.copyWith(fontSize: 16, color: isDark ? AppColors.sky : AppColors.royal))),
+                            Text('$_xp / $xpNeeded XP', style: textTheme.bodyMedium?.copyWith(fontWeight: FontWeight.w700)),
+                          ],
+                        ),
+                        const SizedBox(height: 10),
+                        LayoutBuilder(
+                          builder: (context, c) => Stack(
+                            children: [
+                              Container(
+                                height: 10,
+                                decoration: BoxDecoration(
+                                  color: isDark ? Colors.white.withValues(alpha: 0.08) : const Color(0xFFE3E6F5),
+                                  borderRadius: BorderRadius.circular(10),
+                                ),
+                              ),
+                              TweenAnimationBuilder<double>(
+                                tween: Tween(begin: 0, end: xpProgress.clamp(0.0, 1.0)),
+                                duration: const Duration(milliseconds: 1000),
+                                curve: Curves.easeOutCubic,
+                                builder: (context, v, _) => Container(
+                                  height: 10,
+                                  width: c.maxWidth * v,
+                                  decoration: BoxDecoration(gradient: AppColors.primaryGradient, borderRadius: BorderRadius.circular(10)),
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                        const SizedBox(height: 18),
+                        Row(
+                          children: [
+                            Expanded(child: _StatTile(icon: Icons.ac_unit_rounded, color: AppColors.sky, value: _freezers, label: 'Streak Shields')),
+                            const SizedBox(width: 12),
+                            Expanded(child: _StatTile(icon: Icons.autorenew_rounded, color: AppColors.accent, value: _restoreTokens, label: 'Streak Restores')),
+                          ],
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
+                const SizedBox(height: 16),
+                StaggerIn(
+                  index: 1,
+                  child: GlassCard(
+                    padding: const EdgeInsets.symmetric(vertical: 6),
+                    child: Column(
+                      children: [
+                        _SettingRow(
+                          icon: Icons.dark_mode_rounded,
+                          color: AppColors.violet,
+                          title: 'Dark Mode Theme',
+                          trailing: Switch(value: isDark, onChanged: _toggleDarkMode),
+                          onTap: () => _toggleDarkMode(!isDark),
+                        ),
+                        _SettingRow(
+                          icon: Icons.cloud_done_rounded,
+                          color: AppColors.sky,
+                          title: 'Local Hive Backup',
+                          subtitle: 'Data is synced 100% offline',
+                          onTap: () {},
+                        ),
+                        _SettingRow(
+                          icon: Icons.info_outline_rounded,
+                          color: AppColors.accent,
+                          title: 'About Life Dashboard',
+                          subtitle: 'Version 1.0.0 • Vortex Tech Week 4',
+                          onTap: () {},
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
+                const SizedBox(height: 24),
+                StaggerIn(
+                  index: 2,
+                  child: Pressable(
+                    onTap: _logOut,
+                    child: Container(
+                      height: 54,
+                      alignment: Alignment.center,
+                      decoration: BoxDecoration(
+                        color: AppColors.danger.withValues(alpha: 0.1),
+                        borderRadius: BorderRadius.circular(20),
+                        border: Border.all(color: AppColors.danger.withValues(alpha: 0.4)),
+                      ),
+                      child: const Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          Icon(Icons.logout_rounded, color: AppColors.danger),
+                          SizedBox(width: 8),
+                          Text('Log Out', style: TextStyle(fontWeight: FontWeight.w800, color: AppColors.danger)),
+                        ],
+                      ),
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
 
-            Card(
-              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+class _StatTile extends StatelessWidget {
+  final IconData icon;
+  final Color color;
+  final int value;
+  final String label;
+
+  const _StatTile({required this.icon, required this.color, required this.value, required this.label});
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.symmetric(vertical: 14),
+      decoration: BoxDecoration(color: color.withValues(alpha: 0.1), borderRadius: BorderRadius.circular(18)),
+      child: Column(
+        children: [
+          Icon(icon, color: color, size: 26),
+          const SizedBox(height: 6),
+          CountUpText(value: value, style: const TextStyle(fontWeight: FontWeight.w800, fontSize: 20)),
+          Text(label, style: Theme.of(context).textTheme.bodyMedium?.copyWith(fontSize: 11.5, fontWeight: FontWeight.w600)),
+        ],
+      ),
+    );
+  }
+}
+
+class _SettingRow extends StatelessWidget {
+  final IconData icon;
+  final Color color;
+  final String title;
+  final String? subtitle;
+  final Widget? trailing;
+  final VoidCallback onTap;
+
+  const _SettingRow({required this.icon, required this.color, required this.title, this.subtitle, this.trailing, required this.onTap});
+
+  @override
+  Widget build(BuildContext context) {
+    return Pressable(
+      onTap: onTap,
+      pressedScale: 0.98,
+      child: Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+        child: Row(
+          children: [
+            Container(
+              width: 40,
+              height: 40,
+              decoration: BoxDecoration(shape: BoxShape.circle, color: color.withValues(alpha: 0.14)),
+              child: Icon(icon, color: color, size: 20),
+            ),
+            const SizedBox(width: 14),
+            Expanded(
               child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  SwitchListTile(
-                    title: const Text('Dark Mode Theme'),
-                    secondary: const Icon(Icons.dark_mode_rounded, color: AppColors.primary),
-                    value: isDark,
-                    onChanged: _toggleDarkMode,
-                  ),
-                  const Divider(height: 1),
-                  ListTile(
-                    leading: const Icon(Icons.backup_rounded, color: AppColors.secondary),
-                    title: const Text('Local Hive Backup'),
-                    subtitle: const Text('Data is synced 100% offline'),
-                    trailing: const Icon(Icons.chevron_right_rounded),
-                    onTap: () {},
-                  ),
-                  const Divider(height: 1),
-                  ListTile(
-                    leading: const Icon(Icons.info_outline_rounded, color: AppColors.accent),
-                    title: const Text('About Life Dashboard'),
-                    subtitle: const Text('Version 1.0.0 • Vortex Tech Week 4'),
-                    trailing: const Icon(Icons.chevron_right_rounded),
-                    onTap: () {},
-                  ),
+                  Text(title, style: Theme.of(context).textTheme.titleMedium?.copyWith(fontSize: 15)),
+                  if (subtitle != null) Text(subtitle!, style: Theme.of(context).textTheme.bodyMedium?.copyWith(fontSize: 12.5)),
                 ],
               ),
             ),
-            const SizedBox(height: 24),
-            SizedBox(
-              width: double.infinity,
-              height: 50,
-              child: OutlinedButton.icon(
-                onPressed: () async {
-                  final box = Hive.box(HiveService.settingsBox);
-                  await box.put('isLoggedIn', false);
-                  await box.put('currentUser', '');
-                  await box.put('userName', 'User');
-                  if (mounted) {
-                    // ignore: use_build_context_synchronously
-                    Navigator.of(context).pushReplacementNamed('/login');
-                  }
-                },
-                style: OutlinedButton.styleFrom(
-                  foregroundColor: AppColors.danger,
-                  side: const BorderSide(color: AppColors.danger),
-                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-                ),
-                icon: const Icon(Icons.logout_rounded),
-                label: const Text('Log Out', style: TextStyle(fontWeight: FontWeight.bold)),
-              ),
-            ),
+            trailing ?? Icon(Icons.chevron_right_rounded, color: Theme.of(context).textTheme.bodyMedium?.color),
           ],
         ),
       ),

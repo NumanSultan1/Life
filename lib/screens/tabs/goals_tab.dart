@@ -1,8 +1,49 @@
 import 'package:flutter/material.dart';
+import 'package:intl/intl.dart';
 import '../../models/goal.dart';
+import '../../theme/app_colors.dart';
 import '../../widgets/common/empty_state.dart';
 import '../../services/hive_service.dart';
+import '../../widgets/liquid/liquid.dart';
 import 'dart:math' as math;
+
+Future<void> showAddGoalSheet(BuildContext context) {
+  final titleController = TextEditingController();
+  final descController = TextEditingController();
+
+  return showLiquidSheet(
+    context: context,
+    title: 'Set New Goal',
+    builder: (sheetContext) => Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        const SheetLabel('Goal Title'),
+        TextField(controller: titleController, autofocus: true, decoration: const InputDecoration(hintText: 'Something worth chasing')),
+        const SheetLabel('Description'),
+        TextField(controller: descController, maxLines: 3, decoration: const InputDecoration(hintText: 'Why does it matter?')),
+        const SizedBox(height: 28),
+        GlowButton(
+          label: 'Save Goal',
+          onPressed: () async {
+            if (titleController.text.trim().isNotEmpty) {
+              final user = HiveService.getCurrentUser();
+              final newGoal = Goal(
+                id: DateTime.now().millisecondsSinceEpoch.toString(),
+                title: titleController.text.trim(),
+                description: descController.text.trim(),
+                category: 'Career',
+                targetDate: DateTime.now().add(const Duration(days: 30)),
+                progress: 0.0,
+              );
+              await HiveService.saveGoal(newGoal, user);
+              if (sheetContext.mounted) Navigator.pop(sheetContext);
+            }
+          },
+        ),
+      ],
+    ),
+  );
+}
 
 class GoalsTab extends StatefulWidget {
   const GoalsTab({super.key});
@@ -12,21 +53,6 @@ class GoalsTab extends StatefulWidget {
 }
 
 class _GoalsTabState extends State<GoalsTab> {
-  List<Goal> _goals = [];
-
-  @override
-  void initState() {
-    super.initState();
-    _loadGoals();
-  }
-
-  void _loadGoals() {
-    final user = HiveService.getCurrentUser();
-    setState(() {
-      _goals = HiveService.getGoals(user);
-    });
-  }
-
   Future<void> _updateProgress(Goal goal, double newProgress) async {
     final user = HiveService.getCurrentUser();
     final clampedProgress = double.parse(newProgress.clamp(0.0, 1.0).toStringAsFixed(4));
@@ -45,256 +71,245 @@ class _GoalsTabState extends State<GoalsTab> {
       }
     }
 
-    _loadGoals();
+    if (mounted) setState(() {});
   }
 
   Future<void> _deleteGoal(String id) async {
     final user = HiveService.getCurrentUser();
     await HiveService.deleteGoal(id, user);
-    _loadGoals();
+    if (mounted) setState(() {});
   }
 
-  void _showSetProgressDialog(Goal goal) {
-    final controller = TextEditingController(text: (goal.progress * 100).toStringAsFixed(1));
-    showDialog(
+  void _showSetProgressSheet(Goal goal) {
+    double value = goal.progress;
+    showLiquidSheet(
       context: context,
-      builder: (context) {
-        return AlertDialog(
-          title: Text('Set Progress for "${goal.title}"'),
-          content: TextField(
-            controller: controller,
-            keyboardType: const TextInputType.numberWithOptions(decimal: true),
-            decoration: const InputDecoration(
-              labelText: 'Progress Percentage (0 - 100%)',
-              suffixText: '%',
-              border: OutlineInputBorder(),
+      title: 'Update Progress',
+      builder: (sheetContext) => StatefulBuilder(
+        builder: (context, setStateModal) => Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            const SizedBox(height: 8),
+            Text(goal.title, style: Theme.of(context).textTheme.titleMedium?.copyWith(fontSize: 17)),
+            const SheetLabel('Select your progress'),
+            BubbleSlider(
+              value: value,
+              labelBuilder: (v) => '${(v * 100).round()}%',
+              onChanged: (v) => setStateModal(() => value = v),
             ),
-          ),
-          actions: [
-            TextButton(
-              onPressed: () => Navigator.pop(context),
-              child: const Text('Cancel'),
-            ),
-            ElevatedButton(
+            const SizedBox(height: 28),
+            GlowButton(
+              label: 'Save Progress',
               onPressed: () {
-                final val = double.tryParse(controller.text.trim());
-                if (val != null) {
-                  _updateProgress(goal, val / 100.0);
-                  Navigator.pop(context);
-                }
+                _updateProgress(goal, value);
+                Navigator.pop(sheetContext);
               },
-              style: ElevatedButton.styleFrom(backgroundColor: const Color(0xFFEC4899), foregroundColor: Colors.white),
-              child: const Text('Save'),
             ),
           ],
-        );
-      },
+        ),
+      ),
     );
   }
 
-  void _showAddGoalModal() {
-    final titleController = TextEditingController();
-    final descController = TextEditingController();
-
-    showModalBottomSheet(
-      context: context,
-      isScrollControlled: true,
-      shape: const RoundedRectangleBorder(borderRadius: BorderRadius.vertical(top: Radius.circular(24))),
-      builder: (context) {
-        return Padding(
-          padding: EdgeInsets.only(
-            bottom: MediaQuery.of(context).viewInsets.bottom + 24,
-            top: 24,
-            left: 24,
-            right: 24,
-          ),
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Text(
-                'Set New Goal',
-                style: Theme.of(context).textTheme.titleLarge?.copyWith(fontWeight: FontWeight.bold),
-              ),
-              const SizedBox(height: 16),
-              TextField(
-                controller: titleController,
-                decoration: InputDecoration(
-                  labelText: 'Goal Title',
-                  border: OutlineInputBorder(borderRadius: BorderRadius.circular(14)),
-                ),
-              ),
-              const SizedBox(height: 12),
-              TextField(
-                controller: descController,
-                decoration: InputDecoration(
-                  labelText: 'Description',
-                  border: OutlineInputBorder(borderRadius: BorderRadius.circular(14)),
-                ),
-              ),
-              const SizedBox(height: 24),
-              SizedBox(
-                width: double.infinity,
-                height: 52,
-                child: ElevatedButton(
-                  onPressed: () async {
-                    if (titleController.text.trim().isNotEmpty) {
-                      final user = HiveService.getCurrentUser();
-                      final newGoal = Goal(
-                        id: DateTime.now().millisecondsSinceEpoch.toString(),
-                        title: titleController.text.trim(),
-                        description: descController.text.trim(),
-                        category: 'Career',
-                        targetDate: DateTime.now().add(const Duration(days: 30)),
-                        progress: 0.0,
-                      );
-                      await HiveService.saveGoal(newGoal, user);
-                      _loadGoals();
-                      if (context.mounted) Navigator.pop(context);
-                    }
-                  },
-                  style: ElevatedButton.styleFrom(
-                    backgroundColor: const Color(0xFFEC4899),
-                    foregroundColor: Colors.white,
-                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
-                  ),
-                  child: const Text('Save Goal', style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
-                ),
-              ),
-            ],
-          ),
-        );
-      },
-    );
+  Future<void> _addGoal() async {
+    await showAddGoalSheet(context);
+    if (mounted) setState(() {});
   }
 
   @override
   Widget build(BuildContext context) {
+    final goals = HiveService.getGoals(HiveService.getCurrentUser());
+    final completed = goals.where((g) => g.progress >= 1.0).length;
+    final average = goals.isEmpty ? 0.0 : goals.fold<double>(0, (sum, g) => sum + math.min(1.0, g.progress)) / goals.length;
+
     return Scaffold(
-      body: SafeArea(
-        child: Padding(
-          padding: const EdgeInsets.all(20.0),
-          child: Column(
+      backgroundColor: Colors.transparent,
+      extendBody: true,
+      body: CustomScrollView(
+        slivers: [
+          SliverToBoxAdapter(
+            child: LiquidHeader(
+              title: 'Long-Term Goals',
+              subtitle: '$completed of ${goals.length} achieved · ${(average * 100).round()}% average',
+              actions: [GlassIconButton(icon: Icons.add_rounded, onTap: _addGoal)],
+            ),
+          ),
+          if (goals.isEmpty)
+            SliverFillRemaining(
+              hasScrollBody: false,
+              child: Padding(
+                padding: const EdgeInsets.only(bottom: 110),
+                child: EmptyStateWidget(
+                  icon: Icons.flag_rounded,
+                  title: 'No Goals Set',
+                  description: 'Set ambitious targets and track your long-term progress!',
+                  buttonText: 'Add Goal',
+                  onButtonPressed: _addGoal,
+                ),
+              ),
+            )
+          else
+            SliverPadding(
+              padding: const EdgeInsets.fromLTRB(20, 4, 20, 130),
+              sliver: SliverList(
+                delegate: SliverChildBuilderDelegate(
+                  (context, index) {
+                    final goal = goals[index];
+                    return StaggerIn(
+                      key: ValueKey(goal.id),
+                      index: index,
+                      child: _GoalCard(
+                        goal: goal,
+                        onSetProgress: () => _showSetProgressSheet(goal),
+                        onDelete: () => _deleteGoal(goal.id),
+                        onStep: (delta) => _updateProgress(goal, goal.progress + delta),
+                      ),
+                    );
+                  },
+                  childCount: goals.length,
+                ),
+              ),
+            ),
+        ],
+      ),
+    );
+  }
+}
+
+class _GoalCard extends StatelessWidget {
+  final Goal goal;
+  final VoidCallback onSetProgress;
+  final VoidCallback onDelete;
+  final ValueChanged<double> onStep;
+
+  const _GoalCard({required this.goal, required this.onSetProgress, required this.onDelete, required this.onStep});
+
+  @override
+  Widget build(BuildContext context) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final secondary = Theme.of(context).textTheme.bodyMedium?.color;
+    final done = goal.progress >= 1.0;
+    final percentStr = (goal.progress * 100).toStringAsFixed(2);
+
+    return GlassCard(
+      margin: const EdgeInsets.only(bottom: 14),
+      highlighted: done,
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              Text(
-                'Long-Term Goals',
-                style: Theme.of(context).textTheme.titleLarge?.copyWith(fontSize: 26, fontWeight: FontWeight.bold),
+              Container(
+                width: 44,
+                height: 44,
+                decoration: BoxDecoration(
+                  shape: BoxShape.circle,
+                  color: done ? AppColors.royal : AppColors.royal.withValues(alpha: 0.1),
+                ),
+                child: Icon(done ? Icons.emoji_events_rounded : Icons.flag_rounded, color: done ? Colors.white : AppColors.royal, size: 22),
               ),
-              const SizedBox(height: 16),
+              const SizedBox(width: 12),
               Expanded(
-                child: _goals.isEmpty
-                    ? EmptyStateWidget(
-                        icon: Icons.flag_rounded,
-                        title: 'No Goals Set',
-                        description: 'Set ambitious targets and track your long-term progress!',
-                        buttonText: 'Add Goal',
-                        onButtonPressed: _showAddGoalModal,
-                      )
-                    : ListView.builder(
-                        itemCount: _goals.length,
-                        itemBuilder: (context, index) {
-                          final goal = _goals[index];
-                          final percentStr = (goal.progress * 100).toStringAsFixed(2);
-
-                          return Card(
-                            margin: const EdgeInsets.only(bottom: 14),
-                            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(18)),
-                            child: Padding(
-                              padding: const EdgeInsets.all(16.0),
-                              child: Column(
-                                crossAxisAlignment: CrossAxisAlignment.start,
-                                children: [
-                                  Row(
-                                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                                    children: [
-                                      Expanded(
-                                        child: Text(
-                                          goal.title,
-                                          style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
-                                        ),
-                                      ),
-                                      Row(
-                                        children: [
-                                          GestureDetector(
-                                            onTap: () => _showSetProgressDialog(goal),
-                                            child: Container(
-                                              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-                                              decoration: BoxDecoration(
-                                                color: const Color(0xFFEC4899).withValues(alpha: 0.12),
-                                                borderRadius: BorderRadius.circular(8),
-                                              ),
-                                              child: Text(
-                                                '$percentStr%',
-                                                style: const TextStyle(fontWeight: FontWeight.bold, color: Color(0xFFEC4899)),
-                                              ),
-                                            ),
-                                          ),
-                                          IconButton(
-                                            icon: const Icon(Icons.delete_outline_rounded, color: Colors.grey, size: 20),
-                                            onPressed: () => _deleteGoal(goal.id),
-                                          ),
-                                        ],
-                                      ),
-                                    ],
-                                  ),
-                                  if (goal.description.isNotEmpty) ...[
-                                    Text(goal.description, style: const TextStyle(color: Colors.grey, fontSize: 13)),
-                                    const SizedBox(height: 8),
-                                  ],
-                                  const SizedBox(height: 8),
-                                  ClipRRect(
-                                    borderRadius: BorderRadius.circular(8),
-                                    child: LinearProgressIndicator(
-                                      value: math.min(1.0, goal.progress),
-                                      minHeight: 8,
-                                      backgroundColor: Colors.grey.shade200,
-                                      valueColor: const AlwaysStoppedAnimation<Color>(Color(0xFFEC4899)),
-                                    ),
-                                  ),
-                                  const SizedBox(height: 12),
-                                  Row(
-                                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                                    children: [
-                                      Text(
-                                        goal.progress >= 1.0 ? '🎉 Goal Completed!' : 'Click +/- to adjust by 0.25%',
-                                        style: TextStyle(
-                                          fontSize: 12,
-                                          fontWeight: FontWeight.w600,
-                                          color: goal.progress >= 1.0 ? Colors.green : Colors.grey,
-                                        ),
-                                      ),
-                                      Row(
-                                        children: [
-                                          IconButton(
-                                            icon: const Icon(Icons.remove_circle_outline_rounded, color: Color(0xFFEC4899)),
-                                            onPressed: () => _updateProgress(goal, goal.progress - 0.0025), // 0.25%
-                                            tooltip: '-0.25%',
-                                          ),
-                                          IconButton(
-                                            icon: const Icon(Icons.add_circle_outline_rounded, color: Color(0xFFEC4899)),
-                                            onPressed: () => _updateProgress(goal, goal.progress + 0.0025), // 0.25%
-                                            tooltip: '+0.25%',
-                                          ),
-                                        ],
-                                      ),
-                                    ],
-                                  ),
-                                ],
-                              ),
-                            ),
-                          );
-                        },
-                      ),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(goal.title, style: Theme.of(context).textTheme.titleMedium?.copyWith(fontSize: 16)),
+                    const SizedBox(height: 2),
+                    Text('Target ${DateFormat('d MMM yyyy').format(goal.targetDate)}', style: TextStyle(fontSize: 11.5, color: secondary, fontWeight: FontWeight.w600)),
+                  ],
+                ),
+              ),
+              Pressable(
+                onTap: onSetProgress,
+                child: Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+                  decoration: BoxDecoration(color: AppColors.pink, borderRadius: BorderRadius.circular(10)),
+                  child: Text('$percentStr%', style: const TextStyle(fontWeight: FontWeight.w800, color: Colors.white, fontSize: 12.5)),
+                ),
+              ),
+              IconButton(
+                visualDensity: VisualDensity.compact,
+                icon: Icon(Icons.delete_outline_rounded, color: secondary, size: 20),
+                onPressed: onDelete,
               ),
             ],
           ),
-        ),
+          if (goal.description.isNotEmpty) ...[
+            const SizedBox(height: 10),
+            Text(goal.description, style: TextStyle(color: secondary, fontSize: 13, height: 1.4)),
+          ],
+          const SizedBox(height: 14),
+          LayoutBuilder(
+            builder: (context, c) => Stack(
+              children: [
+                Container(
+                  height: 10,
+                  decoration: BoxDecoration(
+                    color: isDark ? Colors.white.withValues(alpha: 0.08) : const Color(0xFFE3E6F5),
+                    borderRadius: BorderRadius.circular(10),
+                  ),
+                ),
+                TweenAnimationBuilder<double>(
+                  tween: Tween(begin: 0, end: math.min(1.0, goal.progress)),
+                  duration: const Duration(milliseconds: 900),
+                  curve: Curves.easeOutCubic,
+                  builder: (context, v, _) => Container(
+                    height: 10,
+                    width: c.maxWidth * v,
+                    decoration: BoxDecoration(
+                      gradient: const LinearGradient(colors: [AppColors.pink, AppColors.lavender, AppColors.royal]),
+                      borderRadius: BorderRadius.circular(10),
+                      boxShadow: [BoxShadow(color: AppColors.royal.withValues(alpha: 0.3), blurRadius: 8, offset: const Offset(0, 3))],
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ),
+          const SizedBox(height: 8),
+          Row(
+            children: [
+              Expanded(
+                child: Text(
+                  done ? '🎉 Goal Completed!' : 'Tap +/- to adjust by 0.25%',
+                  style: TextStyle(fontSize: 12, fontWeight: FontWeight.w700, color: done ? AppColors.success : secondary),
+                ),
+              ),
+              _StepButton(icon: Icons.remove_rounded, tooltip: '-0.25%', onTap: () => onStep(-0.0025)),
+              const SizedBox(width: 8),
+              _StepButton(icon: Icons.add_rounded, tooltip: '+0.25%', onTap: () => onStep(0.0025)),
+            ],
+          ),
+        ],
       ),
-      floatingActionButton: FloatingActionButton(
-        onPressed: _showAddGoalModal,
-        backgroundColor: const Color(0xFFEC4899),
-        child: const Icon(Icons.add_rounded, color: Colors.white),
+    );
+  }
+}
+
+class _StepButton extends StatelessWidget {
+  final IconData icon;
+  final String tooltip;
+  final VoidCallback onTap;
+
+  const _StepButton({required this.icon, required this.tooltip, required this.onTap});
+
+  @override
+  Widget build(BuildContext context) {
+    return Tooltip(
+      message: tooltip,
+      child: Pressable(
+        onTap: onTap,
+        pressedScale: 0.85,
+        child: Container(
+          width: 36,
+          height: 36,
+          decoration: BoxDecoration(
+            shape: BoxShape.circle,
+            border: Border.all(color: AppColors.royal.withValues(alpha: 0.4), width: 1.5),
+          ),
+          child: Icon(icon, color: AppColors.royal, size: 18),
+        ),
       ),
     );
   }

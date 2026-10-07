@@ -4,6 +4,8 @@ import '../providers/task_provider.dart';
 import '../providers/habit_provider.dart';
 import '../providers/journal_provider.dart';
 import '../services/hive_service.dart';
+import '../theme/app_colors.dart';
+import '../widgets/liquid/liquid.dart';
 
 class StatisticsScreen extends StatelessWidget {
   const StatisticsScreen({super.key});
@@ -23,75 +25,96 @@ class StatisticsScreen extends StatelessWidget {
 
     final habitRate = (habitProvider.completionPercentage * 100).toInt();
 
+    final stats = [
+      ('Tasks Completed', taskProvider.completedCount, '', Icons.check_circle_rounded, AppColors.royal),
+      ('Habit Completion Rate', habitRate, '%', Icons.loop_rounded, AppColors.violet),
+      ('Journal Reflections', journalProvider.entries.length, '', Icons.auto_stories_rounded, AppColors.sky),
+      ('Active Goals', goals.length, '', Icons.flag_rounded, AppColors.accent),
+    ];
+
     return Scaffold(
-      appBar: AppBar(
-        title: const Text('Live Analytics & Stats', style: TextStyle(fontWeight: FontWeight.bold)),
-      ),
-      body: SingleChildScrollView(
-        padding: const EdgeInsets.all(20.0),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Container(
-              padding: const EdgeInsets.all(20),
-              decoration: BoxDecoration(
-                gradient: const LinearGradient(
-                  colors: [Color(0xFF5B6CFF), Color(0xFF7C4DFF)],
-                  begin: Alignment.topLeft,
-                  end: Alignment.bottomRight,
-                ),
-                borderRadius: BorderRadius.circular(20),
+      body: AmbientBackground(
+        child: SingleChildScrollView(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              LiquidHeader(
+                title: 'Live Analytics',
+                subtitle: 'Your productivity at a glance',
+                leading: GlassIconButton(icon: Icons.arrow_back_rounded, onTap: () => Navigator.pop(context)),
               ),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  const Text('Live Productivity Rate', style: TextStyle(color: Colors.white70)),
-                  const SizedBox(height: 8),
-                  Text('$taskRate%', style: const TextStyle(color: Colors.white, fontSize: 36, fontWeight: FontWeight.bold)),
-                  const SizedBox(height: 8),
-                  Text('${taskProvider.completedCount} of ${taskProvider.totalCount} tasks completed', style: const TextStyle(color: Colors.white70, fontSize: 13)),
-                ],
-              ),
-            ),
-            const SizedBox(height: 24),
-            Text('Real-Time Activity Summary', style: Theme.of(context).textTheme.titleLarge?.copyWith(fontSize: 18, fontWeight: FontWeight.bold)),
-            const SizedBox(height: 12),
-            Card(
-              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
-              child: Padding(
-                padding: const EdgeInsets.all(20.0),
+              Padding(
+                padding: const EdgeInsets.fromLTRB(20, 0, 20, 40),
                 child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    _buildStatRow('Tasks Completed', '${taskProvider.completedCount}', Icons.check_circle_rounded, const Color(0xFF5B6CFF)),
-                    const Divider(height: 24),
-                    _buildStatRow('Habit Completion Rate', '$habitRate%', Icons.loop_rounded, const Color(0xFF7C4DFF)),
-                    const Divider(height: 24),
-                    _buildStatRow('Journal Reflections', '${journalProvider.entries.length}', Icons.auto_stories_rounded, const Color(0xFF4CAF50)),
-                    const Divider(height: 24),
-                    _buildStatRow('Active Goals', '${goals.length}', Icons.flag_rounded, const Color(0xFFEC4899)),
+                    StaggerIn(
+                      child: GlassCard(
+                        child: Row(
+                          children: [
+                            Expanded(
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  Text('Live Productivity Rate', style: Theme.of(context).textTheme.titleMedium?.copyWith(fontSize: 15)),
+                                  const SizedBox(height: 6),
+                                  Text(
+                                    '${taskProvider.completedCount} of ${taskProvider.totalCount} tasks completed',
+                                    style: Theme.of(context).textTheme.bodyMedium?.copyWith(fontSize: 13),
+                                  ),
+                                ],
+                              ),
+                            ),
+                            SegmentedRing(progress: taskRate / 100, size: 120),
+                          ],
+                        ),
+                      ),
+                    ),
+                    const SizedBox(height: 24),
+                    Text('Real-Time Activity Summary', style: Theme.of(context).textTheme.titleLarge?.copyWith(fontSize: 18)),
+                    const SizedBox(height: 12),
+                    GridView.count(
+                      crossAxisCount: 2,
+                      shrinkWrap: true,
+                      padding: EdgeInsets.zero,
+                      physics: const NeverScrollableScrollPhysics(),
+                      crossAxisSpacing: 12,
+                      mainAxisSpacing: 12,
+                      childAspectRatio: 1.1,
+                      children: [
+                        for (var i = 0; i < stats.length; i++)
+                          StaggerIn(
+                            index: i + 1,
+                            child: GlassCard(
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                                children: [
+                                  Container(
+                                    width: 42,
+                                    height: 42,
+                                    decoration: BoxDecoration(shape: BoxShape.circle, color: stats[i].$5.withValues(alpha: 0.14)),
+                                    child: Icon(stats[i].$4, color: stats[i].$5, size: 22),
+                                  ),
+                                  CountUpText(
+                                    value: stats[i].$2,
+                                    suffix: stats[i].$3,
+                                    style: TextStyle(fontSize: 26, fontWeight: FontWeight.w800, color: stats[i].$5),
+                                  ),
+                                  Text(stats[i].$1, style: Theme.of(context).textTheme.bodyMedium?.copyWith(fontSize: 12.5, fontWeight: FontWeight.w600)),
+                                ],
+                              ),
+                            ),
+                          ),
+                      ],
+                    ),
                   ],
                 ),
               ),
-            ),
-          ],
+            ],
+          ),
         ),
       ),
-    );
-  }
-
-  static Widget _buildStatRow(String label, String value, IconData icon, Color color) {
-    return Row(
-      mainAxisAlignment: MainAxisAlignment.spaceBetween,
-      children: [
-        Row(
-          children: [
-            Icon(icon, color: color, size: 22),
-            const SizedBox(width: 12),
-            Text(label, style: const TextStyle(fontSize: 15, fontWeight: FontWeight.w600)),
-          ],
-        ),
-        Text(value, style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold, color: color)),
-      ],
     );
   }
 }

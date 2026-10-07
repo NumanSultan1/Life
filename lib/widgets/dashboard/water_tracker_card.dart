@@ -3,10 +3,13 @@ import 'package:hive_flutter/hive_flutter.dart';
 import 'package:provider/provider.dart';
 import '../../providers/task_provider.dart';
 import '../../services/hive_service.dart';
-import '../common/custom_card.dart';
+import '../../theme/app_colors.dart';
+import '../liquid/liquid.dart';
 
 class WaterTrackerCard extends StatefulWidget {
-  const WaterTrackerCard({super.key});
+  final bool onLiquid;
+
+  const WaterTrackerCard({super.key, this.onLiquid = false});
 
   @override
   State<WaterTrackerCard> createState() => _WaterTrackerCardState();
@@ -39,39 +42,21 @@ class _WaterTrackerCardState extends State<WaterTrackerCard> {
   @override
   Widget build(BuildContext context) {
     final progress = _currentGlasses / _goalGlasses;
+    final onLiquid = widget.onLiquid;
+    final fill = onLiquid ? Colors.white : AppColors.sky;
+    final empty = onLiquid ? Colors.white.withValues(alpha: 0.35) : AppColors.lavender.withValues(alpha: 0.5);
 
-    return CustomCard(
+    return GlassCard(
+      onLiquid: onLiquid,
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Row(
-            mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
-              const Row(
-                children: [
-                  Icon(Icons.local_drink_rounded, color: Color(0xFF0284C7), size: 24),
-                  SizedBox(width: 8),
-                  Text(
-                    'Water Tracker',
-                    style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
-                  ),
-                ],
-              ),
-              Container(
-                padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
-                decoration: BoxDecoration(
-                  color: const Color(0xFF0284C7).withValues(alpha: 0.12),
-                  borderRadius: BorderRadius.circular(12),
-                ),
-                child: Text(
-                  '$_currentGlasses / $_goalGlasses Glasses',
-                  style: const TextStyle(
-                    color: Color(0xFF0284C7),
-                    fontWeight: FontWeight.bold,
-                    fontSize: 13,
-                  ),
-                ),
-              ),
+              const Icon(Icons.water_drop_rounded, size: 22),
+              const SizedBox(width: 8),
+              const Expanded(child: Text('Water Tracker', style: TextStyle(fontSize: 16, fontWeight: FontWeight.w800))),
+              GlassPill(text: '$_currentGlasses / $_goalGlasses glasses', onLiquid: onLiquid, color: AppColors.sky),
             ],
           ),
           const SizedBox(height: 16),
@@ -79,36 +64,37 @@ class _WaterTrackerCardState extends State<WaterTrackerCard> {
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: List.generate(_goalGlasses, (index) {
               final isFilled = index < _currentGlasses;
-              return GestureDetector(
-                onTap: () => _updateWater(index + 1),
-                child: AnimatedContainer(
-                  duration: const Duration(milliseconds: 300),
-                  padding: const EdgeInsets.all(6),
-                  decoration: BoxDecoration(
-                    color: isFilled ? const Color(0xFF0284C7).withValues(alpha: 0.15) : Colors.transparent,
-                    borderRadius: BorderRadius.circular(10),
-                    border: Border.all(
-                      color: isFilled ? const Color(0xFF0284C7) : Colors.grey.shade300,
-                      width: 1.5,
-                    ),
-                  ),
-                  child: Icon(
-                    Icons.water_drop_rounded,
-                    size: 20,
-                    color: isFilled ? const Color(0xFF0284C7) : Colors.grey.shade400,
+              return Pressable(
+                pressedScale: 0.8,
+                onTap: () => _updateWater(isFilled && index + 1 == _currentGlasses ? index : index + 1),
+                child: TweenAnimationBuilder<double>(
+                  tween: Tween(begin: 0, end: isFilled ? 1 : 0),
+                  duration: Duration(milliseconds: 250 + index * 40),
+                  curve: Curves.easeOutBack,
+                  builder: (context, v, _) => Transform.scale(
+                    scale: 0.85 + 0.15 * v,
+                    child: Icon(Icons.water_drop_rounded, size: 28, color: Color.lerp(empty, fill, v.clamp(0.0, 1.0))),
                   ),
                 ),
               );
             }),
           ),
           const SizedBox(height: 14),
-          ClipRRect(
-            borderRadius: BorderRadius.circular(8),
-            child: LinearProgressIndicator(
-              value: progress,
-              minHeight: 8,
-              backgroundColor: Colors.grey.shade200,
-              valueColor: const AlwaysStoppedAnimation<Color>(Color(0xFF0284C7)),
+          LayoutBuilder(
+            builder: (context, c) => Stack(
+              children: [
+                Container(height: 7, decoration: BoxDecoration(color: empty.withValues(alpha: 0.4), borderRadius: BorderRadius.circular(7))),
+                AnimatedContainer(
+                  duration: const Duration(milliseconds: 500),
+                  curve: Curves.easeOutCubic,
+                  height: 7,
+                  width: c.maxWidth * progress,
+                  decoration: BoxDecoration(
+                    gradient: LinearGradient(colors: onLiquid ? [AppColors.pink, Colors.white] : [AppColors.sky, AppColors.royal]),
+                    borderRadius: BorderRadius.circular(7),
+                  ),
+                ),
+              ],
             ),
           ),
         ],

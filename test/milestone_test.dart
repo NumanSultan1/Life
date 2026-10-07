@@ -40,10 +40,10 @@ void main() {
     );
 
     await tester.runAsync(() async {
-      await tester.tap(find.byIcon(Icons.local_fire_department_rounded).last);
+      await tester.tap(find.byIcon(Icons.favorite_rounded).first);
       await Future.delayed(const Duration(milliseconds: 300));
     });
-    await tester.pumpAndSettle();
+    await tester.pump(const Duration(seconds: 2));
 
     expect(find.text('DAY STREAK'), findsOneWidget);
     expect(find.textContaining('You just hit a 3 days milestone!'), findsOneWidget);
@@ -60,10 +60,10 @@ void main() {
     );
 
     await tester.runAsync(() async {
-      await tester.tap(find.byIcon(Icons.local_fire_department_rounded).last);
+      await tester.tap(find.byIcon(Icons.favorite_rounded).first);
       await Future.delayed(const Duration(milliseconds: 300));
     });
-    await tester.pumpAndSettle();
+    await tester.pump(const Duration(seconds: 2));
 
     expect(find.text('DAY STREAK'), findsNothing);
   });

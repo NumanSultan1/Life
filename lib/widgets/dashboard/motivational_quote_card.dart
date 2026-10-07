@@ -1,68 +1,34 @@
 import 'package:flutter/material.dart';
+import '../liquid/liquid.dart';
 
 class MotivationalQuoteCard extends StatelessWidget {
   const MotivationalQuoteCard({super.key});
 
   @override
   Widget build(BuildContext context) {
-    return Container(
-      width: double.infinity,
+    return GlassCard(
+      onLiquid: true,
+      highlighted: true,
       padding: const EdgeInsets.all(20),
-      decoration: BoxDecoration(
-        gradient: const LinearGradient(
-          colors: [Color(0xFF5B6CFF), Color(0xFF7C4DFF)],
-          begin: Alignment.topLeft,
-          end: Alignment.bottomRight,
-        ),
-        borderRadius: BorderRadius.circular(22),
-        boxShadow: [
-          BoxShadow(
-            color: const Color(0xFF5B6CFF).withValues(alpha: 0.3),
-            blurRadius: 16,
-            offset: const Offset(0, 6),
-          ),
-        ],
-      ),
-      child: const Column(
+      child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Row(
+          const Row(
             children: [
-              Icon(Icons.format_quote_rounded, color: Colors.white, size: 28),
+              Icon(Icons.format_quote_rounded, size: 26),
               SizedBox(width: 6),
-              Text(
-                'DAILY MOTIVATION',
-                style: TextStyle(
-                  color: Colors.white70,
-                  fontWeight: FontWeight.w700,
-                  fontSize: 12,
-                  letterSpacing: 1.2,
-                ),
-              ),
+              Text('DAILY MOTIVATION', style: TextStyle(fontWeight: FontWeight.w800, fontSize: 11.5, letterSpacing: 1.4)),
             ],
           ),
-          SizedBox(height: 10),
-          Text(
+          const SizedBox(height: 10),
+          const Text(
             '"We are what we repeatedly do. Excellence, then, is not an act, but a habit."',
-            style: TextStyle(
-              color: Colors.white,
-              fontSize: 15,
-              fontWeight: FontWeight.w600,
-              fontStyle: FontStyle.italic,
-              height: 1.4,
-            ),
+            style: TextStyle(fontSize: 15, fontWeight: FontWeight.w600, fontStyle: FontStyle.italic, height: 1.45),
           ),
-          SizedBox(height: 8),
+          const SizedBox(height: 8),
           Align(
             alignment: Alignment.centerRight,
-            child: Text(
-              '— Will Durant',
-              style: TextStyle(
-                color: Colors.white70,
-                fontSize: 13,
-                fontWeight: FontWeight.w500,
-              ),
-            ),
+            child: Text('— Will Durant', style: TextStyle(color: Colors.white.withValues(alpha: 0.75), fontSize: 13, fontWeight: FontWeight.w600)),
           ),
         ],
       ),

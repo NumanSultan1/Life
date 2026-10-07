@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import '../../theme/app_colors.dart';
+import '../liquid/liquid.dart';
 
 class EmptyStateWidget extends StatelessWidget {
   final IconData icon;
@@ -19,63 +20,40 @@ class EmptyStateWidget extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final textTheme = Theme.of(context).textTheme;
 
     return Center(
       child: Padding(
-        padding: const EdgeInsets.symmetric(horizontal: 32.0, vertical: 48.0),
-        child: Column(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            Container(
-              padding: const EdgeInsets.all(24),
-              decoration: BoxDecoration(
-                color: AppColors.primary.withValues(alpha: 0.1),
-                shape: BoxShape.circle,
-              ),
-              child: Icon(
-                icon,
-                size: 54,
-                color: AppColors.primary,
-              ),
-            ),
-            const SizedBox(height: 20),
-            Text(
-              title,
-              style: Theme.of(context).textTheme.titleLarge?.copyWith(
-                    fontWeight: FontWeight.bold,
-                    color: isDark ? AppColors.darkTextPrimary : AppColors.textPrimary,
+        padding: const EdgeInsets.symmetric(horizontal: 32.0, vertical: 32.0),
+        child: StaggerIn(
+          child: Column(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              Floating(
+                child: Container(
+                  width: 110,
+                  height: 110,
+                  decoration: BoxDecoration(
+                    shape: BoxShape.circle,
+                    boxShadow: [BoxShadow(color: AppColors.royal.withValues(alpha: 0.3), blurRadius: 30, offset: const Offset(0, 14))],
                   ),
-              textAlign: TextAlign.center,
-            ),
-            const SizedBox(height: 8),
-            Text(
-              description,
-              style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                    color: isDark ? AppColors.darkTextSecondary : AppColors.textSecondary,
+                  child: ClipOval(
+                    child: LiquidBackground(
+                      child: Center(child: Icon(icon, size: 48, color: Colors.white)),
+                    ),
                   ),
-              textAlign: TextAlign.center,
-            ),
-            if (buttonText != null && onButtonPressed != null) ...[
+                ),
+              ),
               const SizedBox(height: 24),
-              ElevatedButton.icon(
-                onPressed: onButtonPressed,
-                style: ElevatedButton.styleFrom(
-                  backgroundColor: AppColors.primary,
-                  foregroundColor: Colors.white,
-                  padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 12),
-                  shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(16),
-                  ),
-                ),
-                icon: const Icon(Icons.add_rounded, size: 20),
-                label: Text(
-                  buttonText!,
-                  style: const TextStyle(fontWeight: FontWeight.w600),
-                ),
-              ),
+              Text(title, style: textTheme.titleLarge?.copyWith(fontSize: 20), textAlign: TextAlign.center),
+              const SizedBox(height: 8),
+              Text(description, style: textTheme.bodyMedium?.copyWith(height: 1.4), textAlign: TextAlign.center),
+              if (buttonText != null && onButtonPressed != null) ...[
+                const SizedBox(height: 24),
+                GlowButton(label: buttonText!, icon: Icons.add_rounded, expand: false, height: 50, onPressed: onButtonPressed),
+              ],
             ],
-          ],
+          ),
         ),
       ),
     );
