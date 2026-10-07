@@ -59,7 +59,7 @@ class TasksTab extends StatelessWidget {
                     children: [
                       Expanded(
                         child: DropdownButtonFormField<String>(
-                          value: category,
+                          initialValue: category,
                           decoration: InputDecoration(
                             labelText: 'Category',
                             border: OutlineInputBorder(borderRadius: BorderRadius.circular(14)),
@@ -73,7 +73,7 @@ class TasksTab extends StatelessWidget {
                       const SizedBox(width: 12),
                       Expanded(
                         child: DropdownButtonFormField<String>(
-                          value: priority,
+                          initialValue: priority,
                           decoration: InputDecoration(
                             labelText: 'Priority',
                             border: OutlineInputBorder(borderRadius: BorderRadius.circular(14)),
