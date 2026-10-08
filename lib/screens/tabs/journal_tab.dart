@@ -1,6 +1,7 @@
+import '../../utils/feedback.dart';
 import 'dart:math';
 import 'package:flutter/material.dart';
-import 'package:intl/intl.dart';
+import 'package:intl/intl.dart' hide TextDirection;
 import 'package:provider/provider.dart';
 import '../../providers/journal_provider.dart';
 import '../../models/journal_entry.dart';
@@ -8,6 +9,8 @@ import '../../theme/app_colors.dart';
 import '../../widgets/common/empty_state.dart';
 import '../../widgets/liquid/liquid.dart';
 import '../../widgets/illustrations.dart';
+import '../../widgets/voice_input_button.dart';
+import '../../services/voice_languages.dart';
 
 const _prompts = [
   "What is one thing that made you smile today? 😊",
@@ -18,14 +21,15 @@ const _prompts = [
   "What is one thing you can do tomorrow to make it an amazing day? 🌟"
 ];
 
-Future<void> showJournalSheet(BuildContext context) {
-  final titleController = TextEditingController();
-  final contentController = TextEditingController();
-  String mood = '😊';
+/// New entry, or edit [editing] (keeps its date and favourite).
+Future<void> showJournalSheet(BuildContext context, {JournalEntry? editing}) {
+  final titleController = TextEditingController(text: editing?.title);
+  final contentController = TextEditingController(text: editing?.content);
+  String mood = editing?.mood ?? '😊';
 
   return showLiquidSheet(
     context: context,
-    title: 'New Reflection',
+    title: editing == null ? 'New Reflection' : 'Edit Reflection',
     builder: (sheetContext) => StatefulBuilder(
       builder: (context, setStateModal) {
         return Column(
@@ -41,8 +45,14 @@ Future<void> showJournalSheet(BuildContext context) {
               ],
             ),
             TextField(controller: titleController, autofocus: true, decoration: const InputDecoration(hintText: 'Give today a name')),
-            const SheetLabel('Reflections & Thoughts'),
-            TextField(controller: contentController, maxLines: 5, decoration: const InputDecoration(hintText: 'Write freely...')),
+            Row(
+              children: [
+                const Expanded(child: SheetLabel('Reflections & Thoughts')),
+                VoiceInputButton(controller: contentController),
+              ],
+            ),
+            SmartTextField(controller: contentController, hint: 'Write freely, or tap the mic and speak in your language...'),
+            TranslateButton(controller: contentController),
             const SheetLabel('How do you feel?'),
             Row(
               mainAxisAlignment: MainAxisAlignment.spaceBetween,
@@ -73,19 +83,26 @@ Future<void> showJournalSheet(BuildContext context) {
             ),
             const SizedBox(height: 28),
             GlowButton(
-              label: 'Save Entry',
+              label: editing == null ? 'Save Entry' : 'Save Changes',
+              icon: Icons.check_rounded,
               onPressed: () {
-                if (titleController.text.trim().isNotEmpty) {
-                  final newEntry = JournalEntry(
+                if (titleController.text.trim().isEmpty) {
+                  showInfoSnackBar(sheetContext, 'Give your entry a title first.');
+                  return;
+                }
+                final provider = Provider.of<JournalProvider>(sheetContext, listen: false);
+                if (editing != null) {
+                  provider.updateEntry(editing.copyWith(title: titleController.text.trim(), content: contentController.text.trim(), mood: mood));
+                } else {
+                  provider.addEntry(JournalEntry(
                     id: DateTime.now().millisecondsSinceEpoch.toString(),
                     title: titleController.text.trim(),
                     content: contentController.text.trim(),
                     mood: mood,
                     date: DateTime.now(),
-                  );
-                  Provider.of<JournalProvider>(sheetContext, listen: false).addEntry(newEntry);
-                  Navigator.pop(sheetContext);
+                  ));
                 }
+                Navigator.pop(sheetContext);
               },
             ),
           ],
@@ -177,6 +194,80 @@ class JournalTab extends StatelessWidget {
   }
 }
 
+/// The whole entry, with right-to-left text for Urdu and Pashto.
+void _showEntry(BuildContext context, JournalEntry entry) {
+  final rtl = isRtlText(entry.content);
+  final controller = TextEditingController(text: entry.content);
+  showLiquidSheet(
+    context: context,
+    title: entry.title,
+    builder: (c) => Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        Row(
+          children: [
+            Text(entry.mood, style: const TextStyle(fontSize: 28)),
+            const SizedBox(width: 10),
+            Expanded(child: Text(DateFormat('EEEE, d MMMM yyyy · h:mm a').format(entry.date), style: const TextStyle(fontWeight: FontWeight.w700))),
+          ],
+        ),
+        const SizedBox(height: 16),
+        SelectableText(
+          entry.content.isEmpty ? 'No text.' : entry.content,
+          textDirection: rtl ? TextDirection.rtl : TextDirection.ltr,
+          style: TextStyle(fontSize: rtl ? 18 : 15.5, height: rtl ? 1.8 : 1.55),
+        ),
+        const SizedBox(height: 8),
+        TranslateButton(controller: controller),
+        ValueListenableBuilder<TextEditingValue>(
+          valueListenable: controller,
+          builder: (_, value, _) => value.text == entry.content
+              ? const SizedBox.shrink()
+              : GlassCard(padding: const EdgeInsets.all(14), child: Text(value.text, style: const TextStyle(height: 1.5))),
+        ),
+        const SizedBox(height: 20),
+        Row(
+          children: [
+            Expanded(
+              child: GlowButton(
+                label: 'Edit',
+                icon: Icons.edit_rounded,
+                onPressed: () {
+                  Navigator.pop(c);
+                  showJournalSheet(context, editing: entry);
+                },
+              ),
+            ),
+            const SizedBox(width: 12),
+            Expanded(
+              child: OutlinedButton.icon(
+                style: OutlinedButton.styleFrom(
+                  foregroundColor: AppColors.danger,
+                  side: BorderSide(color: AppColors.danger.withValues(alpha: 0.5)),
+                  minimumSize: const Size.fromHeight(56),
+                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+                ),
+                icon: const Icon(Icons.delete_outline_rounded),
+                label: const Text('Delete', style: TextStyle(fontWeight: FontWeight.w800)),
+                onPressed: () async {
+                  final ok = await showLiquidConfirm(c, title: 'Delete this entry?', message: '"${entry.title}" will be removed.', confirmLabel: 'Delete', icon: Icons.delete_outline_rounded, destructive: true);
+                  if (!ok || !c.mounted) return;
+                  final provider = Provider.of<JournalProvider>(c, listen: false);
+                  Navigator.pop(c);
+                  await provider.deleteEntry(entry.id);
+                  if (context.mounted) {
+                    showUndoSnackBar(context, 'Entry deleted', () => provider.restoreEntry(entry));
+                  }
+                },
+              ),
+            ),
+          ],
+        ),
+      ],
+    ),
+  ).whenComplete(controller.dispose);
+}
+
 class _JournalCard extends StatelessWidget {
   final JournalEntry entry;
   final VoidCallback onFavorite;
@@ -189,6 +280,7 @@ class _JournalCard extends StatelessWidget {
     return GlassCard(
       margin: const EdgeInsets.only(bottom: 12),
       padding: const EdgeInsets.fromLTRB(16, 16, 8, 16),
+      onTap: () => _showEntry(context, entry),
       child: Row(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
@@ -204,12 +296,18 @@ class _JournalCard extends StatelessWidget {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Text(entry.title, style: Theme.of(context).textTheme.titleMedium?.copyWith(fontSize: 15.5)),
+                Text(entry.title, textDirection: isRtlText(entry.title) ? TextDirection.rtl : null, style: Theme.of(context).textTheme.titleMedium?.copyWith(fontSize: 15.5)),
                 const SizedBox(height: 2),
                 Text(DateFormat('EEE, d MMM · h:mm a').format(entry.date), style: TextStyle(fontSize: 11.5, color: secondary, fontWeight: FontWeight.w600)),
                 if (entry.content.isNotEmpty) ...[
                   const SizedBox(height: 8),
-                  Text(entry.content, maxLines: 3, overflow: TextOverflow.ellipsis, style: TextStyle(fontSize: 13, color: secondary, height: 1.4)),
+                  Text(
+                    entry.content,
+                    maxLines: 3,
+                    overflow: TextOverflow.ellipsis,
+                    textDirection: isRtlText(entry.content) ? TextDirection.rtl : null,
+                    style: TextStyle(fontSize: 13, color: secondary, height: 1.5),
+                  ),
                 ],
               ],
             ),

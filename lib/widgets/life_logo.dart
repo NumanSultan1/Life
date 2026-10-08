@@ -1,169 +1,258 @@
 import 'dart:math' as math;
+import 'dart:ui' as ui;
 import 'package:flutter/material.dart';
 
-/// Letter gradient (blue → violet) and the runner's contrasting pink.
-const _letterColors = [Color(0xFF3F8CFF), Color(0xFF5B5BF0), Color(0xFF8B3FE8)];
-const _runnerColors = [Color(0xFFFF8FC2), Color(0xFFF0509A)];
+/// Sky blue → purple, shared by the letters and the runner.
+const _logoColors = [Color(0xFF38A6F7), Color(0xFF5A6CF0), Color(0xFF7B3AE6)];
 
-/// The "Life" wordmark: a sprinting athlete stands in for the "f".
+const _letterStyleBase = TextStyle(
+  fontFamily: 'NunitoLogo',
+  fontVariations: [FontVariation('wght', 860)],
+  color: Colors.white,
+  height: 1,
+);
+
+/// The "Life" wordmark: rounded "L", "i" and "e" with a sprinting athlete
+/// as the "f" — his back fist is the dot of the "i".
 ///
-/// Pass [animation] (0..1) to play the launch sequence: "L" and "i"
-/// drop in, the runner sprints in with speed lines and lands in
-/// place, then the "e" pops.
+/// Pass [animation] (0..1) to play the launch sequence: "L" and "i" drop
+/// in, the runner sprints in with speed lines, then the "e" pops.
 class LifeLogo extends StatelessWidget {
   final double fontSize;
   final Animation<double>? animation;
 
   const LifeLogo({super.key, this.fontSize = 56, this.animation});
 
+  @override
+  Widget build(BuildContext context) {
+    final layout = _LogoLayout(fontSize);
+    final anim = animation;
+    Widget paint(double t) => CustomPaint(size: layout.size, painter: _LogoPainter(layout, t));
+    return Semantics(
+      label: 'Life',
+      child: anim == null ? paint(1) : AnimatedBuilder(animation: anim, builder: (context, _) => paint(anim.value)),
+    );
+  }
+}
+
+/// Measures the letters once and places the runner relative to them.
+class _LogoLayout {
+  final double fs;
+  late final TextPainter l, i, e;
+  late final double baseline, xI, xE, runnerX, runnerY, scale;
+  late final Size size;
+
+  _LogoLayout(this.fs) {
+    TextPainter tp(String s) => TextPainter(text: TextSpan(text: s, style: _letterStyleBase.copyWith(fontSize: fs)), textDirection: TextDirection.ltr)..layout();
+    l = tp('L');
+    i = tp('ı'); // dotless i: the runner's fist is the dot
+    e = tp('e');
+    scale = 1.5 * fs / 112;
+
+    final ascent = l.computeDistanceToActualBaseline(TextBaseline.alphabetic);
+    xI = l.width - fs * 0.03;
+    final stemCenter = xI + i.width / 2;
+    // Fist (runner grid 16.4, 27.2) sits above the stem like an i-dot.
+    final fistRel = -0.72 * fs; // relative to the baseline
+    runnerX = stemCenter - 16.4 * scale;
+    final runnerTopRel = fistRel - 27.2 * scale;
+    final top = math.min(runnerTopRel, -ascent);
+    baseline = -top;
+    runnerY = baseline + runnerTopRel;
+    xE = runnerX + 71 * scale;
+    final bottom = math.max(runnerY + 112 * scale, baseline + fs * 0.25);
+    size = Size(xE + e.width, bottom);
+  }
+}
+
+class _LogoPainter extends CustomPainter {
+  final _LogoLayout layout;
+  final double t;
+
+  _LogoPainter(this.layout, this.t);
+
   static double _seg(double t, double start, double end, [Curve curve = Curves.easeOutBack]) =>
       curve.transform(((t - start) / (end - start)).clamp(0.0, 1.0));
 
   @override
-  Widget build(BuildContext context) {
-    final anim = animation;
-    if (anim == null) return _build(1);
-    return AnimatedBuilder(animation: anim, builder: (context, _) => _build(anim.value));
-  }
+  void paint(Canvas canvas, Size size) {
+    final fs = layout.fs;
+    final shader = const LinearGradient(colors: _logoColors, begin: Alignment.topCenter, end: Alignment.bottomCenter).createShader(Offset.zero & size);
 
-  Widget _letters(String text, double opacity, Offset offset, double scale) {
-    return Opacity(
-      opacity: opacity.clamp(0.0, 1.0),
-      child: Transform.translate(
-        offset: offset,
-        child: Transform.scale(
-          scale: scale,
-          alignment: Alignment.bottomCenter,
-          child: ShaderMask(
-            shaderCallback: (r) => const LinearGradient(colors: _letterColors, begin: Alignment.topLeft, end: Alignment.bottomRight).createShader(r),
-            child: Text(
-              text,
-              style: TextStyle(fontSize: fontSize, fontWeight: FontWeight.w800, color: Colors.white, height: 1, letterSpacing: -fontSize * 0.02),
-            ),
-          ),
-        ),
-      ),
-    );
-  }
+    void letter(TextPainter tp, double x, double opacity, Offset offset, double scale) {
+      if (opacity <= 0) return;
+      final ascent = tp.computeDistanceToActualBaseline(TextBaseline.alphabetic);
+      final origin = Offset(x, layout.baseline - ascent) + offset;
+      canvas.save();
+      if (scale != 1) {
+        final pivot = Offset(x + tp.width / 2, layout.baseline);
+        canvas.translate(pivot.dx, pivot.dy);
+        canvas.scale(scale);
+        canvas.translate(-pivot.dx, -pivot.dy);
+      }
+      // Paint the glyph as a mask, then fill it with the shared gradient.
+      canvas.saveLayer(Offset.zero & size, Paint()..color = Colors.white.withValues(alpha: opacity.clamp(0.0, 1.0)));
+      tp.paint(canvas, origin);
+      canvas.drawRect(
+        Offset.zero & size,
+        Paint()
+          ..shader = shader
+          ..blendMode = BlendMode.srcIn,
+      );
+      canvas.restore();
+      canvas.restore();
+    }
 
-  Widget _build(double t) {
     final l = _seg(t, 0.0, 0.3);
     final i = _seg(t, 0.1, 0.4);
     final run = _seg(t, 0.25, 0.65, Curves.easeOutCubic);
-    final land = math.sin(_seg(t, 0.6, 0.78, Curves.linear) * math.pi);
+    final hop = math.sin(_seg(t, 0.6, 0.78, Curves.linear) * math.pi);
     final e = _seg(t, 0.62, 0.9);
-    final runnerW = fontSize * 1.3;
-    final runnerH = fontSize * 1.56;
 
-    return Row(
-      mainAxisSize: MainAxisSize.min,
-      crossAxisAlignment: CrossAxisAlignment.end,
-      children: [
-        _letters('L', l, Offset(0, -fontSize * (1 - l)), 1),
-        _letters('i', i, Offset(0, -fontSize * (1 - i)), 1),
-        SizedBox(
-          width: runnerW * 0.8,
-          height: fontSize,
-          child: OverflowBox(
-            maxWidth: runnerW,
-            maxHeight: runnerH,
-            alignment: const Alignment(0.55, 0.62),
-            child: Opacity(
-              opacity: run > 0 ? 1 : 0,
-              child: Transform.translate(
-                offset: Offset(-fontSize * 4 * (1 - run), -fontSize * 0.08 * land),
-                child: CustomPaint(size: Size(runnerW, runnerH), painter: _RunnerPainter(speed: 1 - run * 0.6)),
-              ),
-            ),
-          ),
-        ),
-        _letters('e', e, Offset.zero, e),
-      ],
+    letter(layout.l, 0, l, Offset(0, -fs * (1 - l)), 1);
+    letter(layout.i, layout.xI, i, Offset(0, -fs * (1 - i)), 1);
+    letter(layout.e, layout.xE, e, Offset.zero, e);
+
+    if (run <= 0) return;
+    canvas.save();
+    canvas.translate(layout.runnerX - fs * 4 * (1 - run), layout.runnerY - fs * 0.08 * hop);
+    canvas.scale(layout.scale);
+    final body = runnerPath();
+    // White halo carves a gap where the runner crosses the letters.
+    canvas.drawPath(
+      body,
+      Paint()
+        ..color = Colors.white
+        ..style = PaintingStyle.stroke
+        ..strokeWidth = 4.2
+        ..strokeJoin = StrokeJoin.round,
     );
+    final runnerShader = const LinearGradient(colors: _logoColors, begin: Alignment.topCenter, end: Alignment.bottomCenter)
+        .createShader(const Rect.fromLTWH(0, 0, 100, 112));
+    canvas.drawPath(body, Paint()..shader = runnerShader);
+    _speedLines(canvas, runnerShader, 1 - run * 0.5);
+    canvas.restore();
   }
-}
 
-/// A forward-leaning sprinter drawn from tapered limbs, with speed
-/// lines behind. Drawn on a 100 x 120 grid, facing right.
-class _RunnerPainter extends CustomPainter {
-  final double speed; // 0..1 strength of the speed lines
-  final Color? color; // solid colour instead of the brand gradient
-  final bool speedLines;
-
-  _RunnerPainter({this.speed = 0.4, this.color, this.speedLines = true});
-
-  @override
-  void paint(Canvas canvas, Size size) {
-    canvas.scale(size.width / 100, size.height / 120);
-    final paint = Paint();
-    if (color != null) {
-      paint.color = color!;
-    } else {
-      paint.shader = const LinearGradient(colors: _runnerColors, begin: Alignment.topRight, end: Alignment.bottomLeft).createShader(const Rect.fromLTWH(0, 0, 100, 120));
-    }
-    // Each part is drawn on its own so overlapping shapes never cancel out.
-    final body = _Painting(canvas, paint);
-
-    void limb(Offset a, Offset b, double wa, double wb) {
-      final d = b - a;
-      final n = Offset(-d.dy, d.dx) / d.distance;
-      body
-        ..addPolygon([a + n * wa / 2, b + n * wb / 2, b - n * wb / 2, a - n * wa / 2], true)
-        ..addOval(Rect.fromCircle(center: a, radius: wa / 2))
-        ..addOval(Rect.fromCircle(center: b, radius: wb / 2));
-    }
-
-    // Head and neck.
-    body.addOval(Rect.fromCircle(center: const Offset(69, 13), radius: 10));
-    limb(const Offset(65, 20), const Offset(60, 29), 11, 13);
-    // Back arm swinging behind (drawn first so the torso overlaps it).
-    limb(const Offset(54, 32), const Offset(40, 46), 13, 10);
-    limb(const Offset(40, 46), const Offset(27, 39), 10, 7.5);
-    body.addOval(Rect.fromCircle(center: const Offset(26, 37), radius: 4.6));
-    // Back leg: pushing off, fully extended.
-    limb(const Offset(42, 62), const Offset(31, 88), 17, 11);
-    limb(const Offset(31, 88), const Offset(15, 108), 11, 6);
-    limb(const Offset(15, 108), const Offset(7, 113), 6, 4.5);
-    // Torso: broad chest tapering to the waist, leaning forward.
-    limb(const Offset(58, 31), const Offset(43, 61), 22, 15);
-    body.addOval(Rect.fromCircle(center: const Offset(43, 61), radius: 9));
-    // Front leg: knee driven high, shin tucked back.
-    limb(const Offset(45, 60), const Offset(67, 71), 18, 12);
-    limb(const Offset(67, 71), const Offset(58, 96), 12, 7);
-    limb(const Offset(58, 96), const Offset(70, 99), 7, 5);
-    // Front arm driving forward and up.
-    limb(const Offset(61, 32), const Offset(76, 46), 13, 10);
-    limb(const Offset(76, 46), const Offset(86, 31), 10, 7.5);
-    body.addOval(Rect.fromCircle(center: const Offset(87, 28), radius: 4.6));
-
-    if (!speedLines) return;
-    // Speed lines trailing behind.
-    final lines = Paint()
-      ..color = _runnerColors.last.withValues(alpha: 0.35 + 0.5 * speed)
-      ..strokeWidth = 3.2
+  void _speedLines(Canvas canvas, Shader shader, double strength) {
+    // White slits across the back arm, like motion blur.
+    final slit = Paint()
+      ..color = Colors.white
+      ..strokeWidth = 1.6
+      ..strokeCap = StrokeCap.round;
+    canvas.drawLine(const Offset(30, 25.2), const Offset(42, 24.4), slit);
+    canvas.drawLine(const Offset(33, 28.6), const Offset(44, 28.0), slit);
+    // Trailing lines behind the front foot.
+    final trail = Paint()
+      ..shader = shader
+      ..strokeWidth = 2.4
       ..strokeCap = StrokeCap.round;
     for (var k = 0; k < 3; k++) {
-      // Trail off the front foot, under the body like the reference.
-      final y = 100.0 + k * 6;
-      final x = 50.0 - k * 6;
-      final len = (18 - k * 4) * (0.7 + speed);
-      canvas.drawLine(Offset(x - len, y + len * 0.35), Offset(x, y), lines);
+      final y = 89.0 + k * 4.2;
+      final x = 39.0 - k * 2.5;
+      final len = (13 - k * 3) * (0.8 + strength * 0.4);
+      canvas.drawLine(Offset(x - len, y + len * 0.42), Offset(x, y), trail);
     }
   }
 
   @override
-  bool shouldRepaint(covariant _RunnerPainter old) => old.speed != speed || old.color != color;
+  bool shouldRepaint(covariant _LogoPainter old) => old.t != t || old.layout != layout;
 }
 
-/// Minimal Path-like facade that paints each shape as soon as it's added.
-class _Painting {
-  final Canvas canvas;
-  final Paint paint;
+/// A muscular sprinter on a 100 x 112 grid, facing right, built from
+/// tapered limbs with muscle bulges and merged into one silhouette.
+Path runnerPath() {
+  Path limb(Offset a, Offset b, double wa, double wb, {double bulgeA = 0, double bulgeB = 0}) {
+    final d = b - a;
+    final n = Offset(-d.dy, d.dx) / d.distance;
+    final mid = a + d * 0.45;
+    final wm = (wa + wb) / 2;
+    final a1 = a + n * wa / 2, b1 = b + n * wb / 2, b2 = b - n * wb / 2, a2 = a - n * wa / 2;
+    final c1 = mid + n * (wm / 2 + bulgeA), c2 = mid - n * (wm / 2 + bulgeB);
+    // Tapered body with a muscle bulge on each side, plus round joints
+    // (separate circles, so the union never leaves gaps at the ends).
+    final shape = Path()
+      ..moveTo(a1.dx, a1.dy)
+      ..quadraticBezierTo(c1.dx, c1.dy, b1.dx, b1.dy)
+      ..lineTo(b2.dx, b2.dy)
+      ..quadraticBezierTo(c2.dx, c2.dy, a2.dx, a2.dy)
+      ..close();
+    return Path.combine(
+      ui.PathOperation.union,
+      shape,
+      Path()
+        ..addOval(Rect.fromCircle(center: a, radius: wa / 2))
+        ..addOval(Rect.fromCircle(center: b, radius: wb / 2)),
+    );
+  }
 
-  _Painting(this.canvas, this.paint);
+  Path oval(Offset c, double rx, double ry, [double angle = 0]) {
+    final p = Path()..addOval(Rect.fromCenter(center: Offset.zero, width: rx * 2, height: ry * 2));
+    final m = Matrix4.identity()
+      ..translateByDouble(c.dx, c.dy, 0, 1)
+      ..rotateZ(angle);
+    return p.transform(m.storage);
+  }
 
-  void addOval(Rect r) => canvas.drawOval(r, paint);
-  void addPolygon(List<Offset> points, bool close) => canvas.drawPath(Path()..addPolygon(points, close), paint);
+  /// Smooth closed outline through [pts] (Catmull-Rom).
+  Path smooth(List<Offset> pts) {
+    final p = Path()..moveTo(pts[0].dx, pts[0].dy);
+    for (var k = 0; k < pts.length; k++) {
+      final p0 = pts[(k - 1 + pts.length) % pts.length];
+      final p1 = pts[k];
+      final p2 = pts[(k + 1) % pts.length];
+      final p3 = pts[(k + 2) % pts.length];
+      final c1 = p1 + (p2 - p0) / 6;
+      final c2 = p2 - (p3 - p1) / 6;
+      p.cubicTo(c1.dx, c1.dy, c2.dx, c2.dy, p2.dx, p2.dy);
+    }
+    return p..close();
+  }
+
+  final parts = <Path>[
+    // Head, slightly forward with a jaw line.
+    oval(const Offset(75.5, 9.8), 8.2, 9.4, 0.25),
+    oval(const Offset(79.5, 14.2), 3.6, 3.0, 0.3),
+    limb(const Offset(72, 15), const Offset(67, 23), 8, 10),
+    // Torso: broad shoulders and chest, tapering to the waist.
+    smooth(const [
+      Offset(49, 19.5),
+      Offset(58, 15.8),
+      Offset(68, 19.5),
+      Offset(73, 27),
+      Offset(71.5, 35),
+      Offset(64, 46),
+      Offset(61.5, 55),
+      Offset(52, 61),
+      Offset(44.5, 58),
+      Offset(46.5, 47),
+      Offset(46, 33),
+    ]),
+    // Back arm reaching back; the fist is the dot of the "i".
+    limb(const Offset(52, 22), const Offset(33, 25.5), 10.5, 8, bulgeA: 1.6),
+    limb(const Offset(33, 25.5), const Offset(20, 27), 8, 6.5, bulgeB: 0.8),
+    oval(const Offset(16.4, 27.2), 7.2, 6.8),
+    // Front arm driving up.
+    limb(const Offset(66, 26), const Offset(82, 37), 10.5, 7.5, bulgeB: 1.8),
+    limb(const Offset(82, 37), const Offset(92, 22.5), 7.5, 5.5, bulgeA: 1.2),
+    oval(const Offset(93.6, 19.6), 4.0, 4.6, -0.4),
+    // Glutes and front leg: knee high, shin tucked back, toes down.
+    oval(const Offset(49.5, 57), 8.5, 7.5, 0.4),
+    limb(const Offset(55, 52), const Offset(73.5, 59.5), 17.5, 10.5, bulgeA: 2.6),
+    limb(const Offset(73.5, 59.5), const Offset(51.5, 84), 10, 5, bulgeB: 3.2),
+    limb(const Offset(51.5, 84), const Offset(44, 93.5), 5.2, 3.6),
+    limb(const Offset(52.5, 84.5), const Offset(54, 88), 3.6, 3),
+    // Back leg pushing off, fully extended.
+    limb(const Offset(48, 57), const Offset(30, 78.5), 17, 10, bulgeB: 2.4),
+    limb(const Offset(30, 78.5), const Offset(9.5, 101.5), 9.6, 4.8, bulgeA: 3.0),
+    limb(const Offset(9.5, 101.5), const Offset(2.5, 110), 4.8, 3.2),
+  ];
+
+  var body = parts.first;
+  for (final p in parts.skip(1)) {
+    body = Path.combine(ui.PathOperation.union, body, p);
+  }
+  return body;
 }
 
 /// The logo on a white rounded tile, matching the app icon, for use on
@@ -176,7 +265,7 @@ class LifeLogoBadge extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Container(
-      padding: EdgeInsets.fromLTRB(fontSize * 0.55, fontSize * 0.45, fontSize * 0.55, fontSize * 0.5),
+      padding: EdgeInsets.fromLTRB(fontSize * 0.5, fontSize * 0.3, fontSize * 0.5, fontSize * 0.25),
       decoration: BoxDecoration(
         gradient: const LinearGradient(colors: [Colors.white, Color(0xFFF1EFFF)], begin: Alignment.topLeft, end: Alignment.bottomRight),
         borderRadius: BorderRadius.circular(fontSize * 0.55),
@@ -187,16 +276,28 @@ class LifeLogoBadge extends StatelessWidget {
   }
 }
 
-/// Just the runner from the logo, e.g. for the notification icon.
+/// Just the runner, e.g. for the notification icon.
 class RunnerMark extends StatelessWidget {
   final double height;
-  final Color? color;
-  final bool speedLines;
+  final Color color;
 
-  const RunnerMark({super.key, this.height = 48, this.color, this.speedLines = false});
+  const RunnerMark({super.key, this.height = 48, this.color = Colors.white});
 
   @override
-  Widget build(BuildContext context) {
-    return CustomPaint(size: Size(height * 100 / 120, height), painter: _RunnerPainter(color: color, speedLines: speedLines));
+  Widget build(BuildContext context) => CustomPaint(size: Size(height * 100 / 112, height), painter: _RunnerMarkPainter(color));
+}
+
+class _RunnerMarkPainter extends CustomPainter {
+  final Color color;
+
+  _RunnerMarkPainter(this.color);
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    canvas.scale(size.width / 100, size.height / 112);
+    canvas.drawPath(runnerPath(), Paint()..color = color);
   }
+
+  @override
+  bool shouldRepaint(covariant _RunnerMarkPainter old) => old.color != color;
 }

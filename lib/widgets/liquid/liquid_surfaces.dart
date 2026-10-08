@@ -8,11 +8,14 @@ import 'wave.dart';
 class LiquidHeader extends StatelessWidget {
   final String title;
   final String? subtitle;
+
+  /// Replaces the title text (e.g. a tappable account switcher).
+  final Widget? titleWidget;
   final Widget? leading;
   final List<Widget> actions;
   final Widget? bottom;
 
-  const LiquidHeader({super.key, required this.title, this.subtitle, this.leading, this.actions = const [], this.bottom});
+  const LiquidHeader({super.key, required this.title, this.subtitle, this.titleWidget, this.leading, this.actions = const [], this.bottom});
 
   @override
   Widget build(BuildContext context) {
@@ -35,7 +38,7 @@ class LiquidHeader extends StatelessWidget {
                       child: Column(
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
-                          Text(title, style: const TextStyle(color: Colors.white, fontSize: 26, fontWeight: FontWeight.w800, letterSpacing: -0.4)),
+                          titleWidget ?? Text(title, style: const TextStyle(color: Colors.white, fontSize: 26, fontWeight: FontWeight.w800, letterSpacing: -0.4)),
                           if (subtitle != null) ...[
                             const SizedBox(height: 4),
                             Text(subtitle!, style: TextStyle(color: Colors.white.withValues(alpha: 0.8), fontSize: 13, fontWeight: FontWeight.w500)),

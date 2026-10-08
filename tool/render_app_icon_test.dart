@@ -69,17 +69,20 @@ void main() {
     tester.view.devicePixelRatio = 1;
     addTearDown(tester.view.reset);
 
-    await tester.runAsync(() => _loadFont('PlusJakartaSans', 'assets/google_fonts/PlusJakartaSans-ExtraBold.ttf'));
+    await tester.runAsync(() async {
+      await _loadFont('PlusJakartaSans', 'assets/google_fonts/PlusJakartaSans-ExtraBold.ttf');
+      await _loadFont('NunitoLogo', 'assets/fonts/Nunito-Variable.ttf');
+    });
 
     // A clean white tile with a faint lavender wash, like the reference.
     const background = DecoratedBox(
       decoration: BoxDecoration(gradient: LinearGradient(colors: [Colors.white, Color(0xFFF1EFFF)], begin: Alignment.topLeft, end: Alignment.bottomRight)),
     );
     // Full icon (iOS and older Android launchers).
-    await _render(tester, const Stack(fit: StackFit.expand, children: [background, Center(child: LifeLogo(fontSize: 290))]), 'assets/icon/icon.png');
+    await _render(tester, const Stack(fit: StackFit.expand, children: [background, Center(child: LifeLogo(fontSize: 380))]), 'assets/icon/icon.png');
     // Adaptive icon layers: logo kept inside the 66% safe zone.
     await _render(tester, background, 'assets/icon/icon_bg.png');
-    await _render(tester, const Center(child: LifeLogo(fontSize: 205)), 'assets/icon/icon_fg.png');
+    await _render(tester, const Center(child: LifeLogo(fontSize: 255)), 'assets/icon/icon_fg.png');
 
     // Android status-bar icon: a white runner on transparent, per density.
     const densities = {'mdpi': 24, 'hdpi': 36, 'xhdpi': 48, 'xxhdpi': 72, 'xxxhdpi': 96};

@@ -1,6 +1,10 @@
+import '../assistant/assistant_screen.dart';
+import '../widgets/life_buddy.dart';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../providers/goal_provider.dart';
+import '../providers/arc_provider.dart';
+import '../providers/activity_provider.dart';
 import '../providers/habit_provider.dart';
 import '../providers/task_provider.dart';
 import '../services/reminder_settings.dart';
@@ -34,6 +38,12 @@ class _MainNavigationScreenState extends State<MainNavigationScreen> with Widget
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (!mounted) return;
       ReminderSettings.applyAll();
+      // Step tracking with whatever the user already allowed; reaching
+      // 10,000 steps ticks the arcs' step rule.
+      final activity = Provider.of<ActivityProvider>(context, listen: false);
+      final arcs = Provider.of<ArcProvider>(context, listen: false);
+      activity.onTenThousand = () => arcs.autoComplete('_steps');
+      activity.start();
       Provider.of<TaskProvider>(context, listen: false).resyncReminders();
       Provider.of<HabitProvider>(context, listen: false).resyncReminders();
     });
@@ -55,6 +65,8 @@ class _MainNavigationScreenState extends State<MainNavigationScreen> with Widget
     Provider.of<TaskProvider>(context, listen: false).loadTasks();
     Provider.of<HabitProvider>(context, listen: false).loadHabits();
     Provider.of<GoalProvider>(context, listen: false).loadGoals();
+    Provider.of<ArcProvider>(context, listen: false).loadArcs();
+    Provider.of<ActivityProvider>(context, listen: false).refresh();
     setState(() {});
   }
 
@@ -150,37 +162,42 @@ class _MainNavigationScreenState extends State<MainNavigationScreen> with Widget
 
   @override
   Widget build(BuildContext context) {
-    final List<Widget> tabs = [
-      DashboardTab(onNavigateTab: _onTabTapped),
-      const PlanTab(),
-      const HabitsTab(),
-      const JournalTab(),
-    ];
+    final List<Widget> tabs = [DashboardTab(onNavigateTab: _onTabTapped), const PlanTab(), const HabitsTab(), const JournalTab()];
 
     return Scaffold(
       extendBody: true,
-      body: AmbientBackground(
-        child: AnimatedSwitcher(
-          duration: const Duration(milliseconds: 420),
-          switchInCurve: Curves.easeOutCubic,
-          switchOutCurve: Curves.easeInCubic,
-          transitionBuilder: (child, animation) => FadeTransition(
-            opacity: animation,
-            child: SlideTransition(
-              position: Tween(begin: const Offset(0, 0.04), end: Offset.zero).animate(animation),
-              child: child,
+      body: Stack(
+        children: [
+          Positioned.fill(
+            child: AmbientBackground(
+              child: AnimatedSwitcher(
+                duration: const Duration(milliseconds: 420),
+                switchInCurve: Curves.easeOutCubic,
+                switchOutCurve: Curves.easeInCubic,
+                transitionBuilder: (child, animation) => FadeTransition(
+                  opacity: animation,
+                  child: SlideTransition(
+                    position: Tween(begin: const Offset(0, 0.04), end: Offset.zero).animate(animation),
+                    child: child,
+                  ),
+                ),
+                // Keyed by day too, so a new day rebuilds cards that cache values.
+                child: KeyedSubtree(key: ValueKey('$_currentIndex-${_day.year}-${_day.month}-${_day.day}'), child: tabs[_currentIndex]),
+              ),
             ),
           ),
-          // Keyed by day too, so a new day rebuilds cards that cache values.
-          child: KeyedSubtree(key: ValueKey('$_currentIndex-${_day.year}-${_day.month}-${_day.day}'), child: tabs[_currentIndex]),
-        ),
+          // Buddy, the assistant, floats above every tab (can be hidden in Profile).
+          Positioned.fill(
+            child: ValueListenableBuilder<int>(
+              valueListenable: BuddySettings.changes,
+              builder: (context, _, _) => BuddySettings.visible
+                  ? FloatingBuddy(onTap: () => Navigator.push(context, MaterialPageRoute(builder: (_) => const AssistantScreen())))
+                  : const SizedBox.shrink(),
+            ),
+          ),
+        ],
       ),
-      bottomNavigationBar: LiquidNavBar(
-        items: _items,
-        currentIndex: _currentIndex,
-        onTap: _onTabTapped,
-        onCenterTap: _onCenterTap,
-      ),
+      bottomNavigationBar: LiquidNavBar(items: _items, currentIndex: _currentIndex, onTap: _onTabTapped, onCenterTap: _onCenterTap),
     );
   }
 }

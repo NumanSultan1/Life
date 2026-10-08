@@ -1,3 +1,4 @@
+import '../services/daily_xp.dart';
 import 'package:flutter/material.dart';
 import 'package:hive_flutter/hive_flutter.dart';
 import '../models/task.dart';
@@ -21,8 +22,12 @@ class TaskProvider extends ChangeNotifier {
     }).toList();
   }
 
-  int get completedCount => _tasks.where((t) => t.isCompleted).length;
+  /// All-time completions (each day of a repeating task counts once).
+  int get completedCount => _tasks.fold(0, (n, t) => n + (t.repeats ? t.completedDates.length : (t.isCompleted ? 1 : 0)));
   int get totalCount => _tasks.length;
+
+  /// Every task, ignoring search and filters.
+  List<Task> get allTasks => List.unmodifiable(_tasks);
 
   /// Whether the user has added any task of their own (not the built-in water one).
   bool get hasOwnTasks => _tasks.any((t) => t.id != 'water_drink_task');
@@ -41,7 +46,7 @@ class TaskProvider extends ChangeNotifier {
 
   /// Today's list (due today, overdue and still open, plus water).
   List<Task> get todayTasks => _tasks.where((t) => t.isForDay(DateTime.now())).toList();
-  int get todayCompletedCount => todayTasks.where((t) => t.isCompleted).length;
+  int get todayCompletedCount => todayTasks.where((t) => t.isDoneOn(DateTime.now())).length;
 
   /// Number of tasks due on [day], for the calendar dots.
   int countForDay(DateTime day) => _tasks.where((t) => t.isForDay(day)).length;
@@ -119,16 +124,28 @@ class TaskProvider extends ChangeNotifier {
     _tasks.add(task);
     await HiveService.saveTask(task, user);
     await _syncReminder(task);
+    await DailyXp.sync();
     notifyListeners();
   }
 
-  Future<void> toggleTaskStatus(String id) async {
+  /// Ticks a task (for repeating tasks, on [day], default today).
+  Future<void> toggleTaskStatus(String id, {DateTime? day}) async {
     final user = HiveService.getCurrentUser();
     final index = _tasks.indexWhere((t) => t.id == id);
     if (index != -1) {
-      final oldCompleted = _tasks[index].isCompleted;
+      final task = _tasks[index];
+      final on = day ?? DateTime.now();
+      final oldCompleted = task.isDoneOn(on);
       final newCompleted = !oldCompleted;
-      final updated = _tasks[index].copyWith(isCompleted: newCompleted);
+      final Task updated;
+      if (task.repeats) {
+        final key = Task.dayKey(on);
+        final dates = List<String>.from(task.completedDates);
+        newCompleted ? dates.add(key) : dates.remove(key);
+        updated = task.copyWith(completedDates: dates);
+      } else {
+        updated = task.copyWith(isCompleted: newCompleted);
+      }
       _tasks[index] = updated;
       await HiveService.saveTask(updated, user);
 
@@ -138,9 +155,8 @@ class TaskProvider extends ChangeNotifier {
         await box.put('${user}_waterIntake', newCompleted ? 8 : 0);
       }
 
-      // Award 20 XP on completion; take it back if unticked so toggling
-      // can't farm XP.
-      await HiveService.addXp(oldCompleted ? -20 : 20);
+      // Today's tasks + habits are worth 50 XP by share done.
+      await DailyXp.sync();
       await _syncReminder(updated);
 
       notifyListeners();
@@ -157,8 +173,7 @@ class TaskProvider extends ChangeNotifier {
         _tasks[index] = updated;
         await HiveService.saveTask(updated, user);
 
-        // Award XP if completed, take it back if the goal is undone
-        await HiveService.addXp(isCompleted ? 20 : -20);
+        await DailyXp.sync();
         notifyListeners();
       }
     }
@@ -169,18 +184,31 @@ class TaskProvider extends ChangeNotifier {
     _tasks.removeWhere((t) => t.id == id);
     await HiveService.deleteTask(id, user);
     await NotificationService.cancel(NotificationService.taskId(id));
+    await DailyXp.sync();
     notifyListeners();
   }
 
-  /// A reminder fires at the due time while the task is still open.
+  /// Ticks one step of a task.
+  Future<void> toggleSubtask(String id, int i) async {
+    final index = _tasks.indexWhere((t) => t.id == id);
+    if (index == -1 || i >= _tasks[index].subtasks.length) return;
+    final subs = List<Subtask>.from(_tasks[index].subtasks);
+    subs[i] = Subtask(subs[i].title, done: !subs[i].done);
+    _tasks[index] = _tasks[index].copyWith(subtasks: subs);
+    await HiveService.saveTask(_tasks[index], HiveService.getCurrentUser());
+    notifyListeners();
+  }
+
+  /// A reminder fires at the next due time while the task is still open.
   Future<void> _syncReminder(Task task) async {
     final id = NotificationService.taskId(task.id);
-    if (task.hasReminder && !task.isCompleted) {
+    final next = task.nextDue(DateTime.now());
+    if (task.hasReminder && !(task.repeats ? false : task.isCompleted) && next != null) {
       await NotificationService.scheduleOnce(
         id: id,
         title: '⏰ ${task.title}',
         body: task.description.isNotEmpty ? task.description : 'Your task is due now. Tap to open Life.',
-        when: task.dueDate,
+        when: next,
       );
     } else {
       await NotificationService.cancel(id);

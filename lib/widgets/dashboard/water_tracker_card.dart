@@ -1,3 +1,4 @@
+import '../../services/app_events.dart';
 import 'package:flutter/material.dart';
 import 'package:hive_flutter/hive_flutter.dart';
 import 'package:provider/provider.dart';
@@ -22,6 +23,7 @@ class _WaterTrackerCardState extends State<WaterTrackerCard> {
   @override
   void initState() {
     super.initState();
+    lifeDataVersion.addListener(_reload);
     final user = HiveService.getCurrentUser();
     final box = Hive.box(HiveService.settingsBox);
     _currentGlasses = box.get('${user}_waterIntake', defaultValue: 0);
@@ -37,6 +39,16 @@ class _WaterTrackerCardState extends State<WaterTrackerCard> {
 
     // Synchronize water drink task in TaskProvider
     Provider.of<TaskProvider>(context, listen: false).syncWaterTask(_currentGlasses);
+  }
+
+  void _reload() {
+    if (mounted) setState(() => _currentGlasses = Hive.box(HiveService.settingsBox).get('${HiveService.getCurrentUser()}_waterIntake', defaultValue: 0));
+  }
+
+  @override
+  void dispose() {
+    lifeDataVersion.removeListener(_reload);
+    super.dispose();
   }
 
   @override

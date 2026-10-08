@@ -1,3 +1,5 @@
+import '../medicines_screen.dart';
+import '../../utils/feedback.dart';
 import 'package:flutter/material.dart';
 import 'package:hive_flutter/hive_flutter.dart';
 import 'package:provider/provider.dart';
@@ -9,6 +11,7 @@ import '../../providers/task_provider.dart';
 import '../../providers/habit_provider.dart';
 import '../../providers/journal_provider.dart';
 import '../../providers/goal_provider.dart';
+import '../../providers/arc_provider.dart';
 import '../../services/reminder_settings.dart';
 
 class LoginScreen extends StatefulWidget {
@@ -27,9 +30,7 @@ class _LoginScreenState extends State<LoginScreen> {
   void _submit() async {
     final name = _nameController.text.trim();
     if (name.isEmpty) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Please enter your name')),
-      );
+      showInfoSnackBar(context, 'Please enter your name', icon: Icons.person_outline_rounded);
       return;
     }
 
@@ -43,10 +44,12 @@ class _LoginScreenState extends State<LoginScreen> {
       Provider.of<HabitProvider>(context, listen: false).loadHabits();
       Provider.of<JournalProvider>(context, listen: false).loadEntries();
       Provider.of<GoalProvider>(context, listen: false).loadGoals();
+      Provider.of<ArcProvider>(context, listen: false).loadArcs();
       // Bring back this person's reminders.
       Provider.of<TaskProvider>(context, listen: false).resyncReminders();
       Provider.of<HabitProvider>(context, listen: false).resyncReminders();
       ReminderSettings.applyAll();
+      MedicineStore.resync();
 
       Navigator.of(context).pushReplacementNamed('/home');
     }

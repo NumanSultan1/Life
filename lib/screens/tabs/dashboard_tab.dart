@@ -1,3 +1,6 @@
+import '../../services/daily_xp.dart';
+import '../../widgets/life_buddy.dart';
+import '../../assistant/assistant_screen.dart';
 import 'package:flutter/material.dart';
 import 'package:hive_flutter/hive_flutter.dart';
 import 'package:provider/provider.dart';
@@ -19,8 +22,20 @@ import '../../providers/goal_provider.dart';
 import '../../widgets/illustrations.dart';
 import '../../services/notification_service.dart';
 import '../../services/progress_history.dart';
+import '../../services/life_widget.dart';
+import '../../widgets/tip_card.dart';
+import '../achievements_screen.dart';
+import '../focus_screen.dart';
+import '../breathe_screen.dart';
+import '../medicines_screen.dart';
+import '../money_screen.dart';
+import '../activity_screen.dart';
+import '../insights_screen.dart';
+import '../weekly_review_screen.dart';
 import '../../services/reminder_settings.dart';
 import '../../utils/feedback.dart';
+import '../../providers/arc_provider.dart';
+import '../arcs/arc_card.dart';
 import '../profile_screen.dart';
 import 'goals_tab.dart';
 import 'habits_tab.dart';
@@ -61,7 +76,10 @@ class _DashboardTabState extends State<DashboardTab> {
 
   Future<void> _showStartupMessages() async {
     if (!mounted) return;
-    final events = Provider.of<HabitProvider>(context, listen: false).takePendingEvents();
+    final events = [
+      ...Provider.of<HabitProvider>(context, listen: false).takePendingEvents(),
+      ...Provider.of<ArcProvider>(context, listen: false).takePendingEvents(),
+    ];
     if (events.isNotEmpty) {
       await showLiquidSheet(
         context: context,
@@ -183,7 +201,7 @@ class _DashboardTabState extends State<DashboardTab> {
     }
 
     // 2. High Priority Task Notification
-    final highPriorityTasks = taskProvider.todayTasks.where((t) => t.priority == 'High' && !t.isCompleted).toList();
+    final highPriorityTasks = taskProvider.todayTasks.where((t) => t.priority == 'High' && !t.isDoneOn(DateTime.now())).toList();
     for (var task in highPriorityTasks) {
       items.add(NotificationItem(id: 'task_${task.id}', title: 'Urgent Task Pending ⚠️', body: 'Do not forget to complete: "${task.title}"', icon: Icons.priority_high_rounded, color: Colors.red));
     }
@@ -311,7 +329,7 @@ class _DashboardTabState extends State<DashboardTab> {
                     onPressed: () {
                       _dismissAllNotifications(list);
                       Navigator.pop(sheetContext);
-                      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('All notifications cleared')));
+                      showInfoSnackBar(context, 'All notifications cleared', icon: Icons.notifications_off_rounded);
                     },
                     child: const Text(
                       'Clear All',
@@ -395,10 +413,10 @@ class _DashboardTabState extends State<DashboardTab> {
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           _HowRow(icon: Icons.checklist_rounded, title: 'Tasks', text: 'One-off things to do. Tick them off when they are done.'),
-          _HowRow(icon: Icons.loop_rounded, title: 'Habits', text: 'Things you repeat every day. Each day in a row grows your streak 🔥 and earns 15 XP.'),
+          _HowRow(icon: Icons.loop_rounded, title: 'Habits', text: 'Things you repeat every day. Each day in a row grows your streak 🔥.'),
           _HowRow(icon: Icons.flag_rounded, title: 'Goals', text: 'Big things over weeks. Check in each day you work on one to move it forward (+10 XP).'),
           _HowRow(icon: Icons.auto_stories_rounded, title: 'Journal', text: 'Write how your day went. Each entry earns 30 XP.'),
-          _HowRow(icon: Icons.emoji_events_rounded, title: 'XP & levels', text: 'Everything you complete earns XP. Fill the bar to level up.'),
+          _HowRow(icon: Icons.emoji_events_rounded, title: 'XP & levels', text: 'Today\'s tasks and habits are worth 50 XP: all done = 50, half done = 25. Journal, focus and challenges add more. Fill the bar to level up.'),
           _HowRow(icon: Icons.ac_unit_rounded, title: 'Streak freezes', text: 'Miss a day and a freeze is used automatically, so your streak survives. You start with 2; buy more for 500 XP.'),
           _HowRow(icon: Icons.autorenew_rounded, title: 'Restore tokens', text: 'Out of freezes and lost a streak? A restore token brings it back. You start with 1; buy more for 700 XP.'),
           _HowRow(icon: Icons.notifications_active_rounded, title: 'Reminders', text: 'Set a time on any task or habit and Life will notify you. Turn on a daily check-in in Profile.'),
@@ -443,7 +461,11 @@ class _DashboardTabState extends State<DashboardTab> {
     ];
     final setupLeft = setupSteps.where((s) => !s.$4).length;
 
-    final openTasks = todayTasks.where((t) => !t.isCompleted).toList();
+    final openTasks = todayTasks.where((t) => !t.isDoneOn(DateTime.now())).toList();
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (mounted) checkNewAchievements(context);
+    });
+    LifeWidget.update(done: doneItems, total: totalItems, nextTask: openTasks.isEmpty ? null : openTasks.first.title);
 
     return CustomScrollView(
       slivers: [
@@ -490,6 +512,8 @@ class _DashboardTabState extends State<DashboardTab> {
                             ],
                           ),
                         ),
+                        const StepsPill(),
+                        const SizedBox(width: 8),
                         GlassIconButton(
                           icon: Icons.notifications_none_rounded,
                           onLiquid: false,
@@ -530,7 +554,7 @@ class _DashboardTabState extends State<DashboardTab> {
                                   style: textTheme.titleMedium?.copyWith(fontSize: 16),
                                 ),
                                 const SizedBox(height: 4),
-                                Text('Tasks, habits and goal check-ins all count.', style: textTheme.bodyMedium?.copyWith(fontSize: 12.5, height: 1.3)),
+                                Text('Today\'s XP: ${DailyXp.earnedToday} of ${DailyXp.max} · tasks and habits', style: textTheme.bodyMedium?.copyWith(fontSize: 12.5, height: 1.3)),
                                 const SizedBox(height: 10),
                                 Row(
                                   children: [
@@ -548,6 +572,8 @@ class _DashboardTabState extends State<DashboardTab> {
                       ),
                     ),
                   ),
+                  const SizedBox(height: 14),
+                  const StaggerIn(index: 2, child: LiveMoveCard()),
                   const SizedBox(height: 14),
                   StaggerIn(index: 2, child: _WeeklyProgressCard(onTap: () => widget.onNavigateTab(6))),
                   if (setupLeft > 0) ...[
@@ -567,6 +593,18 @@ class _DashboardTabState extends State<DashboardTab> {
               crossAxisAlignment: CrossAxisAlignment.stretch,
               children: [
                 _SheetTitle(title: 'Today', subtitle: 'Tap anything to mark it done', icon: Icons.help_outline_rounded, iconLabel: 'How it works', onTap: _showHowItWorks),
+                const _AssistantCard(),
+                const SizedBox(height: 12),
+                // One entry point to all challenges (and today's progress in joined ones).
+                const ChallengesHomeCard(),
+                const SizedBox(height: 12),
+                const _ToolsRow(),
+                const SizedBox(height: 16),
+                const TipCard(
+                  id: 'home_today',
+                  onLiquid: true,
+                  text: 'Tip: tap a habit, task or goal below to tick it off. The ring at the top fills as your day gets done.',
+                ),
                 if (totalItems > 0 && doneItems == totalItems)
                   GlassCard(
                     onLiquid: true,
@@ -760,6 +798,96 @@ class _GetStartedCard extends StatelessWidget {
           ),
         ],
       ),
+    );
+  }
+}
+
+/// Opens the Life Assistant (voice-first).
+class _AssistantCard extends StatelessWidget {
+  const _AssistantCard();
+
+  @override
+  Widget build(BuildContext context) {
+    return Semantics(
+      button: true,
+      label: 'Talk to Life, your assistant',
+      excludeSemantics: true,
+      child: GlassCard(
+        onLiquid: true,
+        onTap: () => Navigator.push(context, MaterialPageRoute(builder: (_) => const AssistantScreen())),
+        child: Row(
+          children: [
+            const LifeBuddy(size: 52),
+            const SizedBox(width: 12),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  const Text('Talk to Life', style: TextStyle(color: Colors.white, fontSize: 16, fontWeight: FontWeight.w800)),
+                  Text('"Remind me to call Abu at 6" · "سبا ما ته یاد کړه"', maxLines: 1, overflow: TextOverflow.ellipsis, style: TextStyle(color: Colors.white.withValues(alpha: 0.85), fontSize: 12.5)),
+                ],
+              ),
+            ),
+            const Icon(Icons.chevron_right_rounded, color: Colors.white),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+/// Shortcuts to Health, Medicines, Breathe, Money, Focus, Review, Insights and Badges.
+class _ToolsRow extends StatelessWidget {
+  const _ToolsRow();
+
+  @override
+  Widget build(BuildContext context) {
+    final tools = <(IconData, String, Widget)>[
+      (Icons.favorite_rounded, 'Health', const ActivityScreen()),
+      (Icons.medication_rounded, 'Medicines', const MedicinesScreen()),
+      (Icons.spa_rounded, 'Breathe', const BreatheScreen()),
+      (Icons.account_balance_wallet_rounded, 'Money', const MoneyScreen()),
+      (Icons.center_focus_strong_rounded, 'Focus', const FocusScreen()),
+      (Icons.event_note_rounded, 'Review', const WeeklyReviewScreen()),
+      (Icons.insights_rounded, 'Insights', const InsightsScreen()),
+      (Icons.military_tech_rounded, 'Badges', const AchievementsScreen()),
+    ];
+    return Column(
+      children: [
+        for (var row = 0; row < tools.length; row += 4) ...[
+          if (row > 0) const SizedBox(height: 10),
+          _toolRow(context, tools.sublist(row, row + 4)),
+        ],
+      ],
+    );
+  }
+
+  Widget _toolRow(BuildContext context, List<(IconData, String, Widget)> tools) {
+    return Row(
+      children: [
+        for (var i = 0; i < tools.length; i++) ...[
+          if (i > 0) const SizedBox(width: 10),
+          Expanded(
+            child: Semantics(
+              button: true,
+              label: 'Open ${tools[i].$2}',
+              excludeSemantics: true,
+              child: GlassCard(
+                onLiquid: true,
+                padding: const EdgeInsets.symmetric(vertical: 12),
+                onTap: () => Navigator.push(context, MaterialPageRoute(builder: (_) => tools[i].$3)),
+                child: Column(
+                  children: [
+                    Icon(tools[i].$1, color: Colors.white),
+                    const SizedBox(height: 6),
+                    Text(tools[i].$2, maxLines: 1, overflow: TextOverflow.ellipsis, style: const TextStyle(color: Colors.white, fontWeight: FontWeight.w700, fontSize: 12)),
+                  ],
+                ),
+              ),
+            ),
+          ),
+        ],
+      ],
     );
   }
 }

@@ -1,3 +1,4 @@
+import '../../widgets/tip_card.dart';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../../providers/task_provider.dart';
@@ -37,9 +38,16 @@ Future<void> showAddTaskSheet(BuildContext context) {
   // Default to the day picked in Plan's calendar, at the next whole hour.
   final day = Provider.of<TaskProvider>(context, listen: false).selectedDay;
   final nextHour = DateTime.now().hour + 1;
-  DateTime date = DateTime(day.year, day.month, day.day);
+  // Tasks can't be planned in the past: a past day in Plan falls back to today.
+  final now = DateTime.now();
+  final today = DateTime(now.year, now.month, now.day);
+  final picked = DateTime(day.year, day.month, day.day);
+  DateTime date = picked.isBefore(today) ? today : picked;
   TimeOfDay time = TimeOfDay(hour: nextHour.clamp(0, 23), minute: 0);
   bool remind = false;
+  String repeat = 'none';
+  final subtaskController = TextEditingController();
+  final subtasks = <String>[];
 
   return showLiquidSheet(
     context: context,
@@ -70,12 +78,12 @@ Future<void> showAddTaskSheet(BuildContext context) {
                     label: _friendlyDate(date),
                     onTap: () async {
                       final now = DateTime.now();
-                      final picked = await showDatePicker(
-                        context: context,
+                      final picked = await showLiquidDatePicker(
+                        context,
                         initialDate: date,
-                        firstDate: DateTime(now.year - 1),
+                        firstDate: today,
                         lastDate: DateTime(now.year + 5),
-                        helpText: 'Task date',
+                        title: 'Task date',
                       );
                       if (picked != null) setStateModal(() => date = picked);
                     },
@@ -87,7 +95,7 @@ Future<void> showAddTaskSheet(BuildContext context) {
                     icon: Icons.schedule_rounded,
                     label: time.format(context),
                     onTap: () async {
-                      final picked = await showTimePicker(context: context, initialTime: time, helpText: 'Task time');
+                      final picked = await showLiquidTimePicker(context, initialTime: time, title: 'Task time');
                       if (picked != null) setStateModal(() => time = picked);
                     },
                   ),
@@ -108,6 +116,56 @@ Future<void> showAddTaskSheet(BuildContext context) {
                 }
                 setStateModal(() => remind = v);
               },
+            ),
+            const SheetLabel('Repeat'),
+            Wrap(
+              spacing: 8,
+              runSpacing: 8,
+              children: taskRepeats.entries.map((e) {
+                final selected = e.key == repeat;
+                return ChoiceChip(
+                  label: Text(e.value),
+                  selected: selected,
+                  onSelected: (_) => setStateModal(() => repeat = e.key),
+                  selectedColor: AppColors.royal,
+                  labelStyle: TextStyle(color: selected ? Colors.white : null, fontWeight: FontWeight.w700),
+                  showCheckmark: false,
+                );
+              }).toList(),
+            ),
+            const SheetLabel('Subtasks (optional)'),
+            for (var i = 0; i < subtasks.length; i++)
+              ListTile(
+                dense: true,
+                contentPadding: EdgeInsets.zero,
+                leading: const Icon(Icons.subdirectory_arrow_right_rounded),
+                title: Text(subtasks[i], style: const TextStyle(fontWeight: FontWeight.w600)),
+                trailing: IconButton(tooltip: 'Remove', icon: const Icon(Icons.close_rounded), onPressed: () => setStateModal(() => subtasks.removeAt(i))),
+              ),
+            Row(
+              children: [
+                Expanded(
+                  child: TextField(
+                    controller: subtaskController,
+                    decoration: const InputDecoration(hintText: 'Add a step'),
+                    onSubmitted: (v) {
+                      if (v.trim().isEmpty) return;
+                      setStateModal(() => subtasks.add(v.trim()));
+                      subtaskController.clear();
+                    },
+                  ),
+                ),
+                const SizedBox(width: 8),
+                IconButton.filled(
+                  tooltip: 'Add step',
+                  onPressed: () {
+                    if (subtaskController.text.trim().isEmpty) return;
+                    setStateModal(() => subtasks.add(subtaskController.text.trim()));
+                    subtaskController.clear();
+                  },
+                  icon: const Icon(Icons.add_rounded),
+                ),
+              ],
             ),
             const SheetLabel('Priority'),
             Row(
@@ -148,6 +206,11 @@ Future<void> showAddTaskSheet(BuildContext context) {
                     priority: priority,
                     dueDate: DateTime(date.year, date.month, date.day, time.hour, time.minute),
                     hasReminder: remind,
+                    repeat: repeat,
+                    subtasks: [
+                      ...subtasks.map((t) => Subtask(t)),
+                      if (subtaskController.text.trim().isNotEmpty) Subtask(subtaskController.text.trim()),
+                    ],
                   );
                   Provider.of<TaskProvider>(sheetContext, listen: false).addTask(newTask);
                   Navigator.pop(sheetContext);
@@ -170,6 +233,11 @@ class TaskFilters extends StatelessWidget {
     final provider = Provider.of<TaskProvider>(context);
     return Column(
       children: [
+        const TipCard(
+          id: 'tasks_repeat',
+          onLiquid: true,
+          text: 'Tip: tasks can repeat (daily, weekdays, weekly…) and have a checklist of subtasks. Set them when you add a task.',
+        ),
         TextField(
           onChanged: provider.setSearchQuery,
           style: const TextStyle(color: Colors.white),
@@ -241,7 +309,8 @@ class TasksSliver extends StatelessWidget {
             description: provider.totalCount == 0
                 ? 'Tasks are one-off things to get done, like "Buy groceries" or "Finish report". Pick a date and time, and get a reminder.'
                 : 'Pick another day above, or add a task for this day.',
-            buttonText: 'Add a task',
+            // No adding to days that are already over.
+            buttonText: provider.selectedDay.isBefore(DateTime(DateTime.now().year, DateTime.now().month, DateTime.now().day)) ? null : 'Add a task',
             onButtonPressed: () => showAddTaskSheet(context),
           ),
         ),
@@ -302,6 +371,7 @@ class _TaskCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final color = priorityColor(task.priority);
+    final done = task.isDoneOn(provider.selectedDay);
     final secondary = Theme.of(context).textTheme.bodyMedium?.color;
 
     return Padding(
@@ -320,12 +390,12 @@ class _TaskCard extends StatelessWidget {
           child: const Icon(Icons.delete_rounded, color: Colors.white),
         ),
         child: GlassCard(
-          highlighted: task.isCompleted,
+          highlighted: done,
           padding: const EdgeInsets.fromLTRB(14, 14, 6, 14),
           child: Row(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              _CheckBubble(checked: task.isCompleted, onTap: () => provider.toggleTaskStatus(task.id)),
+              _CheckBubble(checked: done, onTap: () => provider.toggleTaskStatus(task.id, day: provider.selectedDay)),
               const SizedBox(width: 14),
               Expanded(
                 child: Column(
@@ -335,8 +405,8 @@ class _TaskCard extends StatelessWidget {
                       duration: const Duration(milliseconds: 250),
                       style: Theme.of(context).textTheme.titleMedium!.copyWith(
                             fontSize: 15.5,
-                            decoration: task.isCompleted ? TextDecoration.lineThrough : null,
-                            color: task.isCompleted ? secondary : null,
+                            decoration: done ? TextDecoration.lineThrough : null,
+                            color: done ? secondary : null,
                           ),
                       child: Text(task.title),
                     ),
@@ -366,9 +436,49 @@ class _TaskCard extends StatelessWidget {
                         style: TextStyle(
                           fontSize: 13,
                           color: secondary,
-                          decoration: task.isCompleted ? TextDecoration.lineThrough : null,
+                          decoration: done ? TextDecoration.lineThrough : null,
                         ),
                       ),
+                    ],
+                    if (task.repeats) ...[
+                      const SizedBox(height: 6),
+                      Row(
+                        children: [
+                          Icon(Icons.repeat_rounded, size: 14, color: AppColors.accentOn(context)),
+                          const SizedBox(width: 4),
+                          Text(taskRepeats[task.repeat] ?? '', style: TextStyle(fontSize: 12, fontWeight: FontWeight.w700, color: AppColors.accentOn(context))),
+                        ],
+                      ),
+                    ],
+                    if (task.subtasks.isNotEmpty) ...[
+                      const SizedBox(height: 8),
+                      Text(
+                        '${task.subtasks.where((x) => x.done).length} of ${task.subtasks.length} steps',
+                        style: TextStyle(fontSize: 11.5, fontWeight: FontWeight.w700, color: secondary),
+                      ),
+                      for (var i = 0; i < task.subtasks.length; i++)
+                        InkWell(
+                          onTap: () => provider.toggleSubtask(task.id, i),
+                          child: Padding(
+                            padding: const EdgeInsets.symmetric(vertical: 4),
+                            child: Row(
+                              children: [
+                                Icon(
+                                  task.subtasks[i].done ? Icons.check_box_rounded : Icons.check_box_outline_blank_rounded,
+                                  size: 20,
+                                  color: task.subtasks[i].done ? AppColors.royal : secondary,
+                                ),
+                                const SizedBox(width: 8),
+                                Expanded(
+                                  child: Text(
+                                    task.subtasks[i].title,
+                                    style: TextStyle(fontSize: 13, decoration: task.subtasks[i].done ? TextDecoration.lineThrough : null),
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
+                        ),
                     ],
                   ],
                 ),
@@ -494,11 +604,12 @@ class TaskCalendarStrip extends StatelessWidget {
                 icon: Icons.calendar_month_rounded,
                 size: 34,
                 onTap: () async {
-                  final picked = await showDatePicker(
-                    context: context,
+                  final picked = await showLiquidDatePicker(
+                    context,
                     initialDate: selected,
                     firstDate: DateTime(now.year - 1),
                     lastDate: DateTime(now.year + 5),
+                    title: 'Go to a day',
                   );
                   if (picked != null) provider.selectDay(picked);
                 },

@@ -32,10 +32,49 @@ class ReminderSettings {
     await _applyWater();
   }
 
+  /// Bedtime wind-down reminder, or null when off.
+  static TimeOfDay? get bedtime => parseTimeOfDay(_box.get('${_user}_bedtime', defaultValue: '') as String);
+
+  static Future<void> setBedtime(TimeOfDay? time) async {
+    await _box.put('${_user}_bedtime', time == null ? '' : formatTimeOfDay(time));
+    await _applyBedtime();
+  }
+
+  static bool get weeklyReview => _box.get('${_user}_weeklyReviewReminder', defaultValue: true) as bool;
+
+  static Future<void> setWeeklyReview(bool on) async {
+    await _box.put('${_user}_weeklyReviewReminder', on);
+    await _applyWeekly();
+  }
+
   /// Re-creates every app-level reminder (after login or a permission grant).
   static Future<void> applyAll() async {
     await _applyDailyCheckIn();
     await _applyWater();
+    await _applyBedtime();
+    await _applyWeekly();
+  }
+
+  static Future<void> _applyBedtime() async {
+    final t = bedtime;
+    if (t == null) return NotificationService.cancel(30);
+    await NotificationService.scheduleDaily(
+      id: 30,
+      title: '🌙 Time to wind down',
+      body: 'Screens off soon. A good night\'s sleep makes tomorrow easier.',
+      time: t,
+    );
+  }
+
+  static Future<void> _applyWeekly() async {
+    if (!weeklyReview || dailyCheckIn == null) return NotificationService.cancel(31);
+    await NotificationService.scheduleWeekly(
+      id: 31,
+      title: '📅 Your week in review',
+      body: 'See how your week went and set one focus for next week.',
+      weekday: DateTime.sunday,
+      time: const TimeOfDay(hour: 19, minute: 0),
+    );
   }
 
   static Future<void> _applyDailyCheckIn() async {

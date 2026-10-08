@@ -25,7 +25,7 @@ class PlanTab extends StatelessWidget {
         final goals = Provider.of<GoalProvider>(context);
         final dayTasks = tasks.tasksForSelectedDay;
         final subtitle = segment == 0
-            ? '${dayTasks.where((t) => t.isCompleted).length} of ${dayTasks.length} tasks done'
+            ? '${dayTasks.where((t) => t.isDoneOn(tasks.selectedDay)).length} of ${dayTasks.length} tasks done'
             : '${goals.completedCount} of ${goals.goals.length} goals achieved';
 
         return Scaffold(

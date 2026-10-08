@@ -19,6 +19,7 @@ class NotificationService {
   static const int dailyCheckInId = 1;
   static int taskId(String id) => 100000 + (id.hashCode & 0x3FFFFFFF) % 100000000;
   static int habitId(String id) => 200000000 + (id.hashCode & 0x3FFFFFFF) % 100000000;
+  static int medicineId(String key) => 300000000 + (key.hashCode & 0x3FFFFFFF) % 100000000;
 
   static const _channel = AndroidNotificationDetails(
     'life_reminders',
@@ -28,6 +29,9 @@ class NotificationService {
     priority: Priority.high,
     icon: 'ic_stat_life',
     color: Color(0xFF0B4DBF),
+    // Reminders can name medicines or private tasks: when the phone hides
+    // sensitive notification content, the text appears only after unlocking.
+    visibility: NotificationVisibility.private,
   );
   static const _details = NotificationDetails(android: _channel, iOS: DarwinNotificationDetails());
 
@@ -125,6 +129,27 @@ class NotificationService {
           notificationDetails: _details,
           androidScheduleMode: mode,
           matchDateTimeComponents: DateTimeComponents.time,
+        ));
+  }
+
+  /// Repeats every week on [weekday] (1 = Monday) at [time].
+  static Future<void> scheduleWeekly({required int id, required String title, required String body, required int weekday, required TimeOfDay time}) async {
+    await init();
+    if (!_supported) return;
+    final now = tz.TZDateTime.now(tz.local);
+    var next = tz.TZDateTime(tz.local, now.year, now.month, now.day, time.hour, time.minute);
+    while (next.weekday != weekday || !next.isAfter(now)) {
+      next = next.add(const Duration(days: 1));
+    }
+    final mode = await _mode();
+    await _safely(() => _plugin.zonedSchedule(
+          id: id,
+          title: title,
+          body: body,
+          scheduledDate: next,
+          notificationDetails: _details,
+          androidScheduleMode: mode,
+          matchDateTimeComponents: DateTimeComponents.dayOfWeekAndTime,
         ));
   }
 

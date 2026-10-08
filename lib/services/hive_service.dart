@@ -1,4 +1,6 @@
+import 'package:flutter/foundation.dart';
 import 'package:hive_flutter/hive_flutter.dart';
+import 'secure_boxes.dart';
 import '../models/task.dart';
 import '../models/habit.dart';
 import '../models/journal_entry.dart';
@@ -14,12 +16,15 @@ class HiveService {
 
   static Future<void> init() async {
     await Hive.initFlutter();
-    await Hive.openBox(tasksBox);
-    await Hive.openBox(habitsBox);
-    await Hive.openBox(journalBox);
-    await Hive.openBox(goalsBox);
-    await Hive.openBox(settingsBox);
-    await Hive.openBox(usersBox);
+    final boxes = [tasksBox, habitsBox, journalBox, goalsBox, settingsBox, usersBox];
+    if (kIsWeb) {
+      for (final b in boxes) {
+        await Hive.openBox(b);
+      }
+    } else {
+      // Encrypted at rest with a key in the Android Keystore.
+      await SecureBoxes.openAll(boxes);
+    }
 
     final sBox = Hive.box(settingsBox);
     // App-wide flags only; everything about a person is stored per user.

@@ -16,6 +16,9 @@ class JournalProvider extends ChangeNotifier {
     }).toList();
   }
 
+  /// Every entry, ignoring search and the favourites filter.
+  List<JournalEntry> get allEntries => List.unmodifiable(_entries);
+
   JournalProvider() {
     loadEntries();
   }
@@ -44,6 +47,23 @@ class JournalProvider extends ChangeNotifier {
     // Award 30 XP for writing a journal entry
     await HiveService.addXp(30);
 
+    notifyListeners();
+  }
+
+  /// Puts back a deleted entry (Undo), without awarding XP again.
+  Future<void> restoreEntry(JournalEntry entry) async {
+    _entries.add(entry);
+    _entries.sort((a, b) => b.date.compareTo(a.date));
+    await HiveService.saveJournalEntry(entry, HiveService.getCurrentUser());
+    notifyListeners();
+  }
+
+  /// Saves changes to an existing entry (no extra XP).
+  Future<void> updateEntry(JournalEntry entry) async {
+    final i = _entries.indexWhere((e) => e.id == entry.id);
+    if (i == -1) return;
+    _entries[i] = entry;
+    await HiveService.saveJournalEntry(entry, HiveService.getCurrentUser());
     notifyListeners();
   }
 

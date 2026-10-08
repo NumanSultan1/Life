@@ -1,3 +1,4 @@
+import '../services/daily_xp.dart';
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 import 'package:hive_flutter/hive_flutter.dart';
@@ -106,6 +107,7 @@ class HabitProvider extends ChangeNotifier {
     _habits.add(habit);
     await HiveService.saveHabit(habit, user);
     await _syncReminder(habit);
+    await DailyXp.sync();
     notifyListeners();
   }
 
@@ -119,12 +121,8 @@ class HabitProvider extends ChangeNotifier {
       int newStreak = h.streak;
       if (newStatus) {
         newStreak = h.streak + 1;
-        // Award 15 XP on completing a habit
-        await HiveService.addXp(15);
       } else {
         newStreak = h.streak > 0 ? h.streak - 1 : 0;
-        // Take back the XP so toggling can't farm it
-        await HiveService.addXp(-15);
       }
 
       final newLongest = newStreak > h.longestStreak ? newStreak : h.longestStreak;
@@ -136,6 +134,8 @@ class HabitProvider extends ChangeNotifier {
       _habits[index] = updated;
       await HiveService.saveHabit(updated, user);
       await _syncReminder(updated);
+      // Today's tasks + habits are worth 50 XP by share done.
+      await DailyXp.sync();
       notifyListeners();
     }
   }
@@ -151,8 +151,6 @@ class HabitProvider extends ChangeNotifier {
       int newStreak = h.streak;
       if (isDone && !h.isCompletedToday) {
         newStreak = h.streak + 1;
-        // Award 15 XP
-        await HiveService.addXp(15);
       }
 
       final updated = h.copyWith(
@@ -162,6 +160,7 @@ class HabitProvider extends ChangeNotifier {
       );
       _habits[index] = updated;
       await HiveService.saveHabit(updated, user);
+      await DailyXp.sync();
       notifyListeners();
     }
   }
@@ -210,6 +209,7 @@ class HabitProvider extends ChangeNotifier {
     _habits.removeWhere((h) => h.id == id);
     await HiveService.deleteHabit(id, user);
     await NotificationService.cancel(NotificationService.habitId(id));
+    await DailyXp.sync();
     notifyListeners();
   }
 

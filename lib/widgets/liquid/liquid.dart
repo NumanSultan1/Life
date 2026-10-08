@@ -7,3 +7,4 @@ export 'liquid_surfaces.dart';
 export 'motion.dart';
 export 'segmented_ring.dart';
 export 'wave.dart';
+export 'liquid_dialogs.dart';
