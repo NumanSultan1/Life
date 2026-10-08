@@ -576,7 +576,7 @@ class _DashboardTabState extends State<DashboardTab> {
                         const Illustration(IllustrationKind.allDone, size: 90),
                         const SizedBox(width: 12),
                         Expanded(
-                          child: Text("You've finished everything for today. Enjoy your evening!", style: TextStyle(color: Colors.white.withValues(alpha: 0.95), fontWeight: FontWeight.w700, height: 1.4)),
+                          child: Text("You've finished everything for today. Enjoy the rest of your day!", style: TextStyle(color: Colors.white.withValues(alpha: 0.95), fontWeight: FontWeight.w700, height: 1.4)),
                         ),
                       ],
                     ),

@@ -3,6 +3,7 @@ import 'package:provider/provider.dart';
 import '../providers/goal_provider.dart';
 import '../providers/habit_provider.dart';
 import '../providers/task_provider.dart';
+import '../services/reminder_settings.dart';
 import 'tabs/dashboard_tab.dart';
 import 'tabs/tasks_tab.dart';
 import 'tabs/habits_tab.dart';
@@ -28,6 +29,14 @@ class _MainNavigationScreenState extends State<MainNavigationScreen> with Widget
   void initState() {
     super.initState();
     WidgetsBinding.instance.addObserver(this);
+    // Re-apply reminders on start so any that failed to schedule (or were
+    // cleared by an update) come back.
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted) return;
+      ReminderSettings.applyAll();
+      Provider.of<TaskProvider>(context, listen: false).resyncReminders();
+      Provider.of<HabitProvider>(context, listen: false).resyncReminders();
+    });
   }
 
   @override
