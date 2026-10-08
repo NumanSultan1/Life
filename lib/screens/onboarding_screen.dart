@@ -82,7 +82,7 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
                       children: [
                         const Align(
                           alignment: Alignment.topLeft,
-                          child: Padding(padding: EdgeInsets.fromLTRB(22, 18, 0, 0), child: LifeLogo(fontSize: 30, onLiquid: true)),
+                          child: Padding(padding: EdgeInsets.fromLTRB(20, 16, 0, 0), child: LifeLogoBadge(fontSize: 22)),
                         ),
                         Align(
                           alignment: Alignment.topRight,

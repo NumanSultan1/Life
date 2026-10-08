@@ -17,6 +17,10 @@ import '../../models/task.dart';
 import '../../models/goal.dart';
 import '../../providers/goal_provider.dart';
 import '../../widgets/illustrations.dart';
+import '../../services/notification_service.dart';
+import '../../services/progress_history.dart';
+import '../../services/reminder_settings.dart';
+import '../../utils/feedback.dart';
 import '../profile_screen.dart';
 import 'goals_tab.dart';
 import 'habits_tab.dart';
@@ -43,7 +47,7 @@ class DashboardTab extends StatefulWidget {
 }
 
 class _DashboardTabState extends State<DashboardTab> {
-  String _userName = 'User';
+  String _userName = '';
   int _level = 1;
   int _xp = 0;
 
@@ -51,6 +55,64 @@ class _DashboardTabState extends State<DashboardTab> {
   void initState() {
     super.initState();
     _loadUserData();
+    // After the first frame: overnight streak news, then the reminders prompt.
+    WidgetsBinding.instance.addPostFrameCallback((_) => _showStartupMessages());
+  }
+
+  Future<void> _showStartupMessages() async {
+    if (!mounted) return;
+    final events = Provider.of<HabitProvider>(context, listen: false).takePendingEvents();
+    if (events.isNotEmpty) {
+      await showLiquidSheet(
+        context: context,
+        title: 'While you were away',
+        builder: (sheetContext) => Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            for (final e in events)
+              GlassCard(margin: const EdgeInsets.only(bottom: 10), padding: const EdgeInsets.all(14), child: Text(e, style: const TextStyle(fontWeight: FontWeight.w600, height: 1.4))),
+            const SizedBox(height: 8),
+            GlowButton(label: 'Got it', onPressed: () => Navigator.pop(sheetContext)),
+          ],
+        ),
+      );
+    }
+    if (!mounted || ReminderSettings.prompted) return;
+    await ReminderSettings.markPrompted();
+    if (!mounted) return;
+    await showLiquidSheet(
+      context: context,
+      title: 'Stay on track',
+      builder: (sheetContext) => Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          const Center(child: Illustration(IllustrationKind.allDone, size: 140)),
+          const SizedBox(height: 8),
+          const Text('Turn on reminders?', textAlign: TextAlign.center, style: TextStyle(fontSize: 20, fontWeight: FontWeight.w800)),
+          const SizedBox(height: 8),
+          Text(
+            'Life can send you a daily check-in at 8 PM and remind you about tasks and habits at the times you choose. You can change this anytime in Profile.',
+            textAlign: TextAlign.center,
+            style: Theme.of(sheetContext).textTheme.bodyMedium?.copyWith(height: 1.45),
+          ),
+          const SizedBox(height: 22),
+          GlowButton(
+            label: 'Turn on reminders',
+            icon: Icons.notifications_active_rounded,
+            onPressed: () async {
+              Navigator.pop(sheetContext);
+              if (await NotificationService.requestPermission()) {
+                await ReminderSettings.setDailyCheckIn(const TimeOfDay(hour: 20, minute: 0));
+                if (mounted) showInfoSnackBar(context, 'Reminders on. Daily check-in at 8:00 PM 🔔');
+              } else if (mounted) {
+                showInfoSnackBar(context, 'Notifications are blocked. You can allow them in your phone settings.');
+              }
+            },
+          ),
+          TextButton(onPressed: () => Navigator.pop(sheetContext), child: const Text('Not now')),
+        ],
+      ),
+    );
   }
 
   void _loadUserData() {
@@ -121,7 +183,7 @@ class _DashboardTabState extends State<DashboardTab> {
     }
 
     // 2. High Priority Task Notification
-    final highPriorityTasks = taskProvider.tasks.where((t) => t.priority == 'High' && !t.isCompleted).toList();
+    final highPriorityTasks = taskProvider.todayTasks.where((t) => t.priority == 'High' && !t.isCompleted).toList();
     for (var task in highPriorityTasks) {
       items.add(NotificationItem(id: 'task_${task.id}', title: 'Urgent Task Pending ⚠️', body: 'Do not forget to complete: "${task.title}"', icon: Icons.priority_high_rounded, color: Colors.red));
     }
@@ -140,7 +202,36 @@ class _DashboardTabState extends State<DashboardTab> {
       );
     }
 
-    // 4. Level Up Notification
+    // 4. Streak freezes used or streaks lost today
+    final streakEvents = List<String>.from(box.get('${user}_streakEvents_$todayStr', defaultValue: <String>[]) as List);
+    for (var i = 0; i < streakEvents.length; i++) {
+      final saved = streakEvents[i].startsWith('❄️');
+      items.add(
+        NotificationItem(
+          id: 'streak_${todayStr}_$i',
+          title: saved ? 'Streak freeze used ❄️' : 'Streak lost 💔',
+          body: streakEvents[i].substring(3),
+          icon: saved ? Icons.ac_unit_rounded : Icons.heart_broken_rounded,
+          color: saved ? Colors.lightBlue : Colors.pink,
+        ),
+      );
+    }
+
+    // 5. Goals not checked in yet today
+    final goalProvider = Provider.of<GoalProvider>(context, listen: false);
+    for (final goal in goalProvider.activeGoals.where((g) => !goalProvider.isCheckedInToday(g))) {
+      items.add(
+        NotificationItem(
+          id: 'goal_${goal.id}_$todayStr',
+          title: 'Did you work on "${goal.title}"? 🎯',
+          body: 'Check in today to move it ${(goal.dailyStep * 100).toStringAsFixed(1)}% closer.',
+          icon: Icons.flag_rounded,
+          color: Colors.deepPurple,
+        ),
+      );
+    }
+
+    // 6. Level Up Notification
     final currentLvl = box.get('${user}_level', defaultValue: 1) as int;
     if (currentLvl > 1) {
       items.add(
@@ -308,7 +399,9 @@ class _DashboardTabState extends State<DashboardTab> {
           _HowRow(icon: Icons.flag_rounded, title: 'Goals', text: 'Big things over weeks. Check in each day you work on one to move it forward (+10 XP).'),
           _HowRow(icon: Icons.auto_stories_rounded, title: 'Journal', text: 'Write how your day went. Each entry earns 30 XP.'),
           _HowRow(icon: Icons.emoji_events_rounded, title: 'XP & levels', text: 'Everything you complete earns XP. Fill the bar to level up.'),
-          _HowRow(icon: Icons.ac_unit_rounded, title: 'Shields & tokens', text: 'Spend XP on a shield to protect a streak on a day off, or a token to bring back a lost streak.'),
+          _HowRow(icon: Icons.ac_unit_rounded, title: 'Streak freezes', text: 'Miss a day and a freeze is used automatically, so your streak survives. You start with 2; buy more for 500 XP.'),
+          _HowRow(icon: Icons.autorenew_rounded, title: 'Restore tokens', text: 'Out of freezes and lost a streak? A restore token brings it back. You start with 1; buy more for 700 XP.'),
+          _HowRow(icon: Icons.notifications_active_rounded, title: 'Reminders', text: 'Set a time on any task or habit and Life will notify you. Turn on a daily check-in in Profile.'),
         ],
       ),
     );
@@ -332,12 +425,17 @@ class _DashboardTabState extends State<DashboardTab> {
     // Everything that can be completed today counts toward the ring.
     final goalsToday = goalProvider.activeGoals.length + goalProvider.goals.where((g) => g.progress >= 1.0 && goalProvider.isCheckedInToday(g)).length;
     final goalsDone = goalProvider.goals.where(goalProvider.isCheckedInToday).length;
-    final totalItems = taskProvider.totalCount + habitProvider.totalHabits + goalsToday;
-    final doneItems = taskProvider.completedCount + habitProvider.completedTodayCount + goalsDone;
+    final todayTasks = taskProvider.todayTasks;
+    final totalItems = todayTasks.length + habitProvider.totalHabits + goalsToday;
+    final doneItems = taskProvider.todayCompletedCount + habitProvider.completedTodayCount + goalsDone;
+    // Remember today's result so the weekly chart below includes it.
+    // (Hive updates its in-memory copy synchronously; it only writes when
+    // the numbers change.)
+    ProgressHistory.recordToday(doneItems, totalItems);
     final dayProgress = totalItems == 0 ? 0.0 : doneItems / totalItems;
 
     // Only the built-in water task means the user hasn't added tasks yet.
-    final hasOwnTask = taskProvider.totalCount > 1 || (taskProvider.totalCount == 1 && taskProvider.tasks.first.id != 'water_drink_task');
+    final hasOwnTask = taskProvider.hasOwnTasks;
     final setupSteps = [
       (Icons.add_task_rounded, 'Add a task', 'Something to get done today', hasOwnTask, () => showAddTaskSheet(context)),
       (Icons.loop_rounded, 'Create a habit', 'Something to repeat every day', habitProvider.totalHabits > 0, () => showAddHabitSheet(context)),
@@ -345,7 +443,7 @@ class _DashboardTabState extends State<DashboardTab> {
     ];
     final setupLeft = setupSteps.where((s) => !s.$4).length;
 
-    final openTasks = taskProvider.tasks.where((t) => !t.isCompleted).toList();
+    final openTasks = todayTasks.where((t) => !t.isCompleted).toList();
 
     return CustomScrollView(
       slivers: [
@@ -450,6 +548,8 @@ class _DashboardTabState extends State<DashboardTab> {
                       ),
                     ),
                   ),
+                  const SizedBox(height: 14),
+                  StaggerIn(index: 2, child: _WeeklyProgressCard(onTap: () => widget.onNavigateTab(6))),
                   if (setupLeft > 0) ...[
                     const SizedBox(height: 14),
                     StaggerIn(index: 2, child: _GetStartedCard(steps: setupSteps, onHowItWorks: _showHowItWorks)),
@@ -493,7 +593,7 @@ class _DashboardTabState extends State<DashboardTab> {
                 // Tasks
                 const SizedBox(height: 10),
                 _SectionLabel(label: 'Tasks', action: 'See all', onAction: _openTasks),
-                if (taskProvider.tasks.isEmpty)
+                if (todayTasks.isEmpty)
                   _EmptyRow(icon: Icons.add_task_rounded, text: 'No tasks yet. Add something to do today.', onTap: () => showAddTaskSheet(context))
                 else if (openTasks.isEmpty)
                   _EmptyRow(icon: Icons.check_circle_rounded, text: 'Every task is done. Nice!', onTap: _openTasks)
@@ -917,6 +1017,110 @@ class _GradientBar extends StatelessWidget {
               height: 7,
               width: c.maxWidth * v,
               decoration: BoxDecoration(gradient: AppColors.primaryGradient, borderRadius: BorderRadius.circular(7)),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+/// Monday-to-Sunday completion bars for the current week.
+class _WeeklyProgressCard extends StatelessWidget {
+  final VoidCallback onTap;
+
+  const _WeeklyProgressCard({required this.onTap});
+
+  @override
+  Widget build(BuildContext context) {
+    final week = ProgressHistory.thisWeek();
+    final todayIndex = DateTime.now().weekday - 1;
+    final recorded = week.whereType<double>().toList();
+    final average = recorded.isEmpty ? 0.0 : recorded.reduce((a, b) => a + b) / recorded.length;
+    final best = recorded.isEmpty ? -1 : week.indexOf(recorded.reduce((a, b) => a > b ? a : b));
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final textTheme = Theme.of(context).textTheme;
+    const labels = ['M', 'T', 'W', 'T', 'F', 'S', 'S'];
+    const dayNames = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday'];
+
+    return GlassCard(
+      onTap: onTap,
+      padding: const EdgeInsets.fromLTRB(16, 14, 16, 12),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          Row(
+            children: [
+              Expanded(child: Text('This week', style: textTheme.titleMedium?.copyWith(fontSize: 16))),
+              GlassPill(text: '${(average * 100).round()}% average', color: AppColors.accentOn(context)),
+            ],
+          ),
+          const SizedBox(height: 4),
+          Text(
+            recorded.isEmpty
+                ? 'Your week fills in as you complete things each day.'
+                : best >= 0 && week[best]! > 0
+                    ? 'Best day so far: ${dayNames[best]}'
+                    : 'Complete something today to start your week.',
+            style: textTheme.bodyMedium?.copyWith(fontSize: 12.5),
+          ),
+          const SizedBox(height: 12),
+          SizedBox(
+            height: 92,
+            child: Row(
+              crossAxisAlignment: CrossAxisAlignment.end,
+              children: List.generate(7, (i) {
+                final v = week[i];
+                final isToday = i == todayIndex;
+                return Expanded(
+                  child: Semantics(
+                    label: '${dayNames[i]}: ${v == null ? 'no data' : '${(v * 100).round()} percent'}',
+                    child: Column(
+                      mainAxisAlignment: MainAxisAlignment.end,
+                      children: [
+                        if (v != null)
+                          Text('${(v * 100).round()}', style: textTheme.bodyMedium?.copyWith(fontSize: 10, fontWeight: FontWeight.w700)),
+                        const SizedBox(height: 3),
+                        Container(
+                          width: 18,
+                          height: 58,
+                          alignment: Alignment.bottomCenter,
+                          decoration: BoxDecoration(
+                            color: isDark ? Colors.white.withValues(alpha: 0.08) : const Color(0xFFE9ECF8),
+                            borderRadius: BorderRadius.circular(9),
+                          ),
+                          child: TweenAnimationBuilder<double>(
+                            tween: Tween(begin: 0, end: (v ?? 0).clamp(0.0, 1.0)),
+                            duration: Duration(milliseconds: 700 + i * 80),
+                            curve: Curves.easeOutCubic,
+                            builder: (context, h, _) => Container(
+                              width: 18,
+                              height: 58 * h,
+                              decoration: BoxDecoration(
+                                gradient: LinearGradient(
+                                  colors: isToday ? const [AppColors.pink, AppColors.accent] : const [AppColors.sky, AppColors.royal],
+                                  begin: Alignment.topCenter,
+                                  end: Alignment.bottomCenter,
+                                ),
+                                borderRadius: BorderRadius.circular(9),
+                              ),
+                            ),
+                          ),
+                        ),
+                        const SizedBox(height: 5),
+                        Text(
+                          labels[i],
+                          style: TextStyle(
+                            fontSize: 11.5,
+                            fontWeight: isToday ? FontWeight.w800 : FontWeight.w600,
+                            color: isToday ? AppColors.accentOn(context) : textTheme.bodyMedium?.color,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                );
+              }),
             ),
           ),
         ],

@@ -7,6 +7,9 @@ class Task {
   final DateTime dueDate;
   final bool isCompleted;
 
+  /// When true, a notification fires at [dueDate] (date and time).
+  final bool hasReminder;
+
   Task({
     required this.id,
     required this.title,
@@ -15,7 +18,20 @@ class Task {
     this.priority = 'Medium',
     required this.dueDate,
     this.isCompleted = false,
+    this.hasReminder = false,
   });
+
+  /// Whether the task belongs on [day]'s list: due that day, or (for
+  /// today) overdue and still open. The water task is always for today.
+  bool isForDay(DateTime day) {
+    final d = DateTime(day.year, day.month, day.day);
+    final due = DateTime(dueDate.year, dueDate.month, dueDate.day);
+    final now = DateTime.now();
+    final today = DateTime(now.year, now.month, now.day);
+    if (id == 'water_drink_task') return d == today;
+    if (due == d) return true;
+    return d == today && due.isBefore(today) && !isCompleted;
+  }
 
   Map<String, dynamic> toMap() {
     return {
@@ -26,6 +42,7 @@ class Task {
       'priority': priority,
       'dueDate': dueDate.toIso8601String(),
       'isCompleted': isCompleted,
+      'hasReminder': hasReminder,
     };
   }
 
@@ -38,6 +55,7 @@ class Task {
       priority: map['priority'] ?? 'Medium',
       dueDate: map['dueDate'] != null ? DateTime.parse(map['dueDate']) : DateTime.now(),
       isCompleted: map['isCompleted'] ?? false,
+      hasReminder: map['hasReminder'] ?? false,
     );
   }
 
@@ -49,6 +67,7 @@ class Task {
     String? priority,
     DateTime? dueDate,
     bool? isCompleted,
+    bool? hasReminder,
   }) {
     return Task(
       id: id ?? this.id,
@@ -58,6 +77,7 @@ class Task {
       priority: priority ?? this.priority,
       dueDate: dueDate ?? this.dueDate,
       isCompleted: isCompleted ?? this.isCompleted,
+      hasReminder: hasReminder ?? this.hasReminder,
     );
   }
 }

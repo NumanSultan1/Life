@@ -11,6 +11,9 @@ class Habit {
   final int previousStreak;
   final bool isFrozen;
 
+  /// Daily reminder time as "HH:mm", or '' for none.
+  final String reminderTime;
+
   Habit({
     required this.id,
     required this.title,
@@ -23,6 +26,7 @@ class Habit {
     this.currentCount = 0,
     this.previousStreak = 0,
     this.isFrozen = false,
+    this.reminderTime = '',
   });
 
   Map<String, dynamic> toMap() {
@@ -38,6 +42,7 @@ class Habit {
       'currentCount': currentCount,
       'previousStreak': previousStreak,
       'isFrozen': isFrozen,
+      'reminderTime': reminderTime,
     };
   }
 
@@ -54,6 +59,7 @@ class Habit {
       currentCount: map['currentCount'] ?? 0,
       previousStreak: map['previousStreak'] ?? 0,
       isFrozen: map['isFrozen'] ?? false,
+      reminderTime: map['reminderTime'] ?? '',
     );
   }
 
@@ -69,6 +75,7 @@ class Habit {
     int? currentCount,
     int? previousStreak,
     bool? isFrozen,
+    String? reminderTime,
   }) {
     return Habit(
       id: id ?? this.id,
@@ -82,6 +89,7 @@ class Habit {
       currentCount: currentCount ?? this.currentCount,
       previousStreak: previousStreak ?? this.previousStreak,
       isFrozen: isFrozen ?? this.isFrozen,
+      reminderTime: reminderTime ?? this.reminderTime,
     );
   }
 }

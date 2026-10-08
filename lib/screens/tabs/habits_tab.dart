@@ -10,10 +10,12 @@ import '../../widgets/common/milestone_dialog.dart';
 import '../../widgets/liquid/liquid.dart';
 import '../../widgets/illustrations.dart';
 import '../../utils/feedback.dart';
+import '../../services/notification_service.dart';
 
 Future<void> showAddHabitSheet(BuildContext context) {
   final titleController = TextEditingController();
   String category = 'Health';
+  TimeOfDay? reminder;
 
   return showLiquidSheet(
     context: context,
@@ -47,14 +49,32 @@ Future<void> showAddHabitSheet(BuildContext context) {
                 ],
               ),
             ),
-            const SizedBox(height: 28),
+            const SizedBox(height: 8),
+            SwitchListTile(
+              contentPadding: EdgeInsets.zero,
+              value: reminder != null,
+              secondary: Icon(Icons.notifications_active_rounded, color: AppColors.accentOn(context)),
+              title: const Text('Remind me every day', style: TextStyle(fontWeight: FontWeight.w700)),
+              subtitle: Text(reminder == null ? 'Skipped automatically once it\'s done' : 'At ${reminder!.format(context)} · tap to change'),
+              onChanged: (v) async {
+                if (!v) return setStateModal(() => reminder = null);
+                final picked = await pickReminderTime(context, const TimeOfDay(hour: 8, minute: 0));
+                if (picked != null) setStateModal(() => reminder = picked);
+              },
+            ),
+            const SizedBox(height: 20),
             Center(
               child: GlowButton(
                 label: 'Add Habit',
                 expand: false,
                 onPressed: () {
                   if (titleController.text.trim().isNotEmpty) {
-                    final newHabit = Habit(id: DateTime.now().millisecondsSinceEpoch.toString(), title: titleController.text.trim(), category: category);
+                    final newHabit = Habit(
+                      id: DateTime.now().millisecondsSinceEpoch.toString(),
+                      title: titleController.text.trim(),
+                      category: category,
+                      reminderTime: reminder == null ? '' : formatTimeOfDay(reminder!),
+                    );
                     Provider.of<HabitProvider>(sheetContext, listen: false).addHabit(newHabit);
                     Navigator.pop(sheetContext);
                   }
@@ -105,8 +125,11 @@ class HabitsTab extends StatelessWidget {
           const Illustration(IllustrationKind.habits, size: 140),
           const SizedBox(height: 8),
           row(Icons.local_fire_department_rounded, AppColors.warning, 'Streaks', 'Mark a habit done each day to grow its streak. Miss a day and it resets to 0. Each check earns 15 XP.'),
-          row(Icons.ac_unit_rounded, AppColors.sky, 'Shields (50 XP)', 'Turn on "Freeze Streak" before a day off and your streak survives one missed day.'),
-          row(Icons.autorenew_rounded, AppColors.accent, 'Tokens (80 XP)', 'Lost a streak? Use a token to bring it back.'),
+          row(Icons.ac_unit_rounded, AppColors.sky, 'Streak freezes (${HabitProvider.freezePrice} XP)',
+              'Miss a day? A freeze is used automatically so your streak survives. Each missed habit-day uses one. You start with 2.'),
+          row(Icons.autorenew_rounded, AppColors.accent, 'Restore tokens (${HabitProvider.restorePrice} XP)',
+              'Out of freezes and lost a streak? Use a token to bring it back. You start with 1.'),
+          row(Icons.bolt_rounded, AppColors.violet, 'XP to spend', 'Everything you complete adds XP. Spending it in the shop never lowers your level.'),
           row(Icons.emoji_events_rounded, AppColors.violet, 'Milestones', 'Hitting 3, 7, 15, 30 days and beyond shows a celebration.'),
         ],
       ),
@@ -126,8 +149,8 @@ class HabitsTab extends StatelessWidget {
     final user = HiveService.getCurrentUser();
     final box = Hive.box(HiveService.settingsBox);
     final freezers = box.get('${user}_streakFreezers', defaultValue: 2) as int;
-    final restoreTokens = box.get('${user}_streakRestoreTokens', defaultValue: 2) as int;
-    final xp = box.get('${user}_xp', defaultValue: 0) as int;
+    final restoreTokens = box.get('${user}_streakRestoreTokens', defaultValue: 1) as int;
+    final xp = HiveService.getXpBank();
 
     return Scaffold(
       backgroundColor: Colors.transparent,
@@ -153,7 +176,7 @@ class HabitsTab extends StatelessWidget {
                             ],
                           ),
                         ),
-                        GlassPill(text: '$xp XP', icon: Icons.bolt_rounded, color: AppColors.violet),
+                        GlassPill(text: '$xp XP to spend', icon: Icons.bolt_rounded, color: AppColors.violet),
                         const SizedBox(width: 8),
                         Tooltip(
                           message: 'How streaks work',
@@ -170,11 +193,11 @@ class HabitsTab extends StatelessWidget {
                               _ShopTile(
                                 icon: Icons.ac_unit_rounded,
                                 color: AppColors.sky,
-                                title: '$freezers Shields',
-                                price: 'Buy · 50 XP',
-                                onBuy: xp >= 50
+                                title: '$freezers Freezes',
+                                price: xp >= HabitProvider.freezePrice ? 'Buy · ${HabitProvider.freezePrice} XP' : 'Used automatically',
+                                onBuy: xp >= HabitProvider.freezePrice
                                     ? () async {
-                                        if (await provider.buyStreakFreeze() && context.mounted) _snack(context, 'Bought 1 Streak Freeze! ❄️');
+                                        if (await provider.buyStreakFreeze() && context.mounted) _snack(context, 'Bought 1 streak freeze ❄️ It will be used automatically.');
                                       }
                                     : null,
                               ),
@@ -182,11 +205,11 @@ class HabitsTab extends StatelessWidget {
                               _ShopTile(
                                 icon: Icons.autorenew_rounded,
                                 color: AppColors.accent,
-                                title: '$restoreTokens Tokens',
-                                price: 'Buy · 80 XP',
-                                onBuy: xp >= 80
+                                title: '$restoreTokens Restores',
+                                price: xp >= HabitProvider.restorePrice ? 'Buy · ${HabitProvider.restorePrice} XP' : '${HabitProvider.restorePrice} XP each',
+                                onBuy: xp >= HabitProvider.restorePrice
                                     ? () async {
-                                        if (await provider.buyRestoreToken() && context.mounted) _snack(context, 'Bought 1 Streak Restore Token! 🔄');
+                                        if (await provider.buyRestoreToken() && context.mounted) _snack(context, 'Bought 1 restore token 🔄');
                                       }
                                     : null,
                               ),
@@ -323,7 +346,7 @@ class _HabitCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final done = habit.isCompletedToday;
-    final hasStreakToRestore = habit.streak == 0 && habit.previousStreak > 0;
+    final hasStreakToRestore = habit.previousStreak > habit.streak;
     final faded = Colors.white.withValues(alpha: 0.75);
 
     return GlassCard(
@@ -397,23 +420,20 @@ class _HabitCard extends StatelessWidget {
           Row(
             children: [
               _MiniAction(
-                icon: Icons.ac_unit_rounded,
-                label: habit.isFrozen ? 'Shield Active' : 'Freeze Streak',
-                active: habit.isFrozen,
-                onTap: () async {
-                  final success = await provider.toggleStreakFreeze(habit.id);
-                  if (!success) snack('No Streak Freezers available! Please buy one with XP.');
-                },
+                icon: habit.reminderTime.isEmpty ? Icons.notifications_none_rounded : Icons.notifications_active_rounded,
+                label: habit.reminderTime.isEmpty ? 'Add reminder' : 'Reminder ${parseTimeOfDay(habit.reminderTime)!.format(context)}',
+                active: habit.reminderTime.isNotEmpty,
+                onTap: () => _editReminder(context, habit),
               ),
               if (hasStreakToRestore) ...[
                 const SizedBox(width: 8),
                 _MiniAction(
                   icon: Icons.autorenew_rounded,
-                  label: 'Restore ${habit.previousStreak}d',
+                  label: 'Restore ${habit.previousStreak}-day streak',
                   active: false,
                   onTap: () async {
                     final success = await provider.restoreStreak(habit.id);
-                    snack(success ? 'Streak restored to ${habit.previousStreak} Days! 🎉' : 'No Streak Restore Tokens left! Purchase with XP.');
+                    snack(success ? 'Streak restored! 🎉' : 'No restore tokens left. Buy one for ${HabitProvider.restorePrice} XP.');
                   },
                 ),
               ],
@@ -458,5 +478,45 @@ class _MiniAction extends StatelessWidget {
         ),
       ),
     );
+  }
+}
+
+/// Asks for notification permission, then lets the user pick a time.
+Future<TimeOfDay?> pickReminderTime(BuildContext context, TimeOfDay initial) async {
+  if (!await NotificationService.requestPermission()) {
+    if (context.mounted) showInfoSnackBar(context, 'Notifications are off for Life. Turn them on in your phone settings.');
+    return null;
+  }
+  if (!context.mounted) return null;
+  return showTimePicker(context: context, initialTime: initial, helpText: 'Daily reminder time');
+}
+
+Future<void> _editReminder(BuildContext context, Habit habit) async {
+  final provider = Provider.of<HabitProvider>(context, listen: false);
+  final current = parseTimeOfDay(habit.reminderTime);
+  if (current != null) {
+    final remove = await showModalBottomSheet<bool>(
+      context: context,
+      builder: (c) => SafeArea(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            ListTile(leading: const Icon(Icons.schedule_rounded), title: const Text('Change time'), onTap: () => Navigator.pop(c, false)),
+            ListTile(leading: const Icon(Icons.notifications_off_rounded), title: const Text('Turn off reminder'), onTap: () => Navigator.pop(c, true)),
+          ],
+        ),
+      ),
+    );
+    if (remove == null) return;
+    if (remove) {
+      await provider.setReminder(habit.id, null);
+      return;
+    }
+  }
+  if (!context.mounted) return;
+  final picked = await pickReminderTime(context, current ?? const TimeOfDay(hour: 8, minute: 0));
+  if (picked != null) {
+    await provider.setReminder(habit.id, picked);
+    if (context.mounted) showInfoSnackBar(context, 'Reminder set for ${picked.format(context)} every day 🔔');
   }
 }

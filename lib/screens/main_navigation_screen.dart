@@ -1,4 +1,8 @@
 import 'package:flutter/material.dart';
+import 'package:provider/provider.dart';
+import '../providers/goal_provider.dart';
+import '../providers/habit_provider.dart';
+import '../providers/task_provider.dart';
 import 'tabs/dashboard_tab.dart';
 import 'tabs/tasks_tab.dart';
 import 'tabs/habits_tab.dart';
@@ -16,8 +20,34 @@ class MainNavigationScreen extends StatefulWidget {
   State<MainNavigationScreen> createState() => _MainNavigationScreenState();
 }
 
-class _MainNavigationScreenState extends State<MainNavigationScreen> {
+class _MainNavigationScreenState extends State<MainNavigationScreen> with WidgetsBindingObserver {
   int _currentIndex = 0;
+  DateTime _day = DateTime.now();
+
+  @override
+  void initState() {
+    super.initState();
+    WidgetsBinding.instance.addObserver(this);
+  }
+
+  @override
+  void dispose() {
+    WidgetsBinding.instance.removeObserver(this);
+    super.dispose();
+  }
+
+  /// Coming back on a new day: settle streaks, reset water/mood, refresh.
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    if (state != AppLifecycleState.resumed) return;
+    final now = DateTime.now();
+    if (now.year == _day.year && now.month == _day.month && now.day == _day.day) return;
+    _day = now;
+    Provider.of<TaskProvider>(context, listen: false).loadTasks();
+    Provider.of<HabitProvider>(context, listen: false).loadHabits();
+    Provider.of<GoalProvider>(context, listen: false).loadGoals();
+    setState(() {});
+  }
 
   static const _items = [
     LiquidNavItem(Icons.home_rounded, 'Home'),
@@ -132,7 +162,8 @@ class _MainNavigationScreenState extends State<MainNavigationScreen> {
               child: child,
             ),
           ),
-          child: KeyedSubtree(key: ValueKey(_currentIndex), child: tabs[_currentIndex]),
+          // Keyed by day too, so a new day rebuilds cards that cache values.
+          child: KeyedSubtree(key: ValueKey('$_currentIndex-${_day.year}-${_day.month}-${_day.day}'), child: tabs[_currentIndex]),
         ),
       ),
       bottomNavigationBar: LiquidNavBar(

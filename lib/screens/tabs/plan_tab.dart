@@ -23,8 +23,9 @@ class PlanTab extends StatelessWidget {
       builder: (context, segment, _) {
         final tasks = Provider.of<TaskProvider>(context);
         final goals = Provider.of<GoalProvider>(context);
+        final dayTasks = tasks.tasksForSelectedDay;
         final subtitle = segment == 0
-            ? '${tasks.completedCount} of ${tasks.totalCount} tasks done'
+            ? '${dayTasks.where((t) => t.isCompleted).length} of ${dayTasks.length} tasks done'
             : '${goals.completedCount} of ${goals.goals.length} goals achieved';
 
         return Scaffold(
@@ -42,7 +43,9 @@ class PlanTab extends StatelessWidget {
                       AnimatedSize(
                         duration: const Duration(milliseconds: 300),
                         curve: Curves.easeOutCubic,
-                        child: segment == 0 ? const Padding(padding: EdgeInsets.only(top: 14), child: TaskFilters()) : const SizedBox(width: double.infinity),
+                        child: segment == 0
+                            ? const Padding(padding: EdgeInsets.only(top: 14), child: Column(children: [TaskCalendarStrip(), SizedBox(height: 14), TaskFilters()]))
+                            : const SizedBox(width: double.infinity),
                       ),
                     ],
                   ),

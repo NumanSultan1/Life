@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:hive_flutter/hive_flutter.dart';
 import '../widgets/life_logo.dart';
-import '../widgets/liquid/liquid.dart';
+import '../theme/app_colors.dart';
 
 class SplashScreen extends StatefulWidget {
   const SplashScreen({super.key});
@@ -50,12 +50,16 @@ class _SplashScreenState extends State<SplashScreen> with SingleTickerProviderSt
     final tagline = CurvedAnimation(parent: _controller, curve: const Interval(0.75, 1, curve: Curves.easeOut));
 
     return Scaffold(
-      body: LiquidBackground(
+      // Same white tile as the app icon, so launch feels continuous.
+      body: DecoratedBox(
+        decoration: const BoxDecoration(
+          gradient: LinearGradient(colors: [Colors.white, Color(0xFFF1EFFF)], begin: Alignment.topLeft, end: Alignment.bottomRight),
+        ),
         child: Center(
           child: Column(
             mainAxisAlignment: MainAxisAlignment.center,
             children: [
-              Semantics(label: 'Life', child: LifeLogo(fontSize: 76, onLiquid: true, animation: _controller)),
+              Semantics(label: 'Life', child: LifeLogo(fontSize: 76, animation: _controller)),
               const SizedBox(height: 18),
               FadeTransition(
                 opacity: tagline,
@@ -63,7 +67,7 @@ class _SplashScreenState extends State<SplashScreen> with SingleTickerProviderSt
                   position: Tween(begin: const Offset(0, 0.5), end: Offset.zero).animate(tagline),
                   child: Text(
                     'Tasks · Habits · Goals · Journal',
-                    style: TextStyle(fontSize: 15, color: Colors.white.withValues(alpha: 0.88), fontWeight: FontWeight.w600, letterSpacing: 0.3),
+                    style: const TextStyle(fontSize: 15, color: AppColors.textSecondary, fontWeight: FontWeight.w600, letterSpacing: 0.3),
                   ),
                 ),
               ),

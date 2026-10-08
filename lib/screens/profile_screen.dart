@@ -5,6 +5,11 @@ import '../theme/app_colors.dart';
 import '../main.dart';
 import '../widgets/liquid/liquid.dart';
 import 'statistics_screen.dart';
+import 'package:intl/intl.dart';
+import '../services/notification_service.dart';
+import '../services/reminder_settings.dart';
+import '../utils/feedback.dart';
+import '../widgets/life_logo.dart';
 
 class ProfileScreen extends StatefulWidget {
   const ProfileScreen({super.key});
@@ -14,11 +19,13 @@ class ProfileScreen extends StatefulWidget {
 }
 
 class _ProfileScreenState extends State<ProfileScreen> {
-  String _userName = 'User';
+  String _userName = '';
+  String _subtitle = '';
   int _level = 1;
   int _xp = 0;
+  int _xpBank = 0;
   int _freezers = 2;
-  int _restoreTokens = 2;
+  int _restoreTokens = 1;
 
   @override
   void initState() {
@@ -34,8 +41,57 @@ class _ProfileScreenState extends State<ProfileScreen> {
       _level = box.get('${user}_level', defaultValue: 1) as int;
       _xp = box.get('${user}_xp', defaultValue: 0) as int;
       _freezers = box.get('${user}_streakFreezers', defaultValue: 2) as int;
-      _restoreTokens = box.get('${user}_streakRestoreTokens', defaultValue: 2) as int;
+      _restoreTokens = box.get('${user}_streakRestoreTokens', defaultValue: 1) as int;
+      _xpBank = HiveService.getXpBank();
+      final joined = DateTime.tryParse(box.get('${user}_joined', defaultValue: '') as String);
+      _subtitle = joined != null ? 'Member since ${DateFormat('MMMM yyyy').format(joined)}' : 'Level $_level';
     });
+  }
+
+  Future<void> _setDailyReminder(bool on) async {
+    if (!on) {
+      await ReminderSettings.setDailyCheckIn(null);
+      return setState(() {});
+    }
+    if (!await NotificationService.requestPermission()) {
+      if (mounted) showInfoSnackBar(context, 'Notifications are blocked. You can allow them in your phone settings.');
+      return;
+    }
+    if (!mounted) return;
+    final time = await showTimePicker(context: context, initialTime: ReminderSettings.dailyCheckIn ?? const TimeOfDay(hour: 20, minute: 0), helpText: 'Daily check-in time');
+    if (time == null) return;
+    await ReminderSettings.setDailyCheckIn(time);
+    if (mounted) setState(() {});
+  }
+
+  Future<void> _setWaterReminders(bool on) async {
+    if (on && !await NotificationService.requestPermission()) {
+      if (mounted) showInfoSnackBar(context, 'Notifications are blocked. You can allow them in your phone settings.');
+      return;
+    }
+    await ReminderSettings.setWaterReminders(on);
+    if (mounted) setState(() {});
+  }
+
+  Future<void> _sendTestNotification() async {
+    if (!await NotificationService.requestPermission()) {
+      if (mounted) showInfoSnackBar(context, 'Notifications are blocked. You can allow them in your phone settings.');
+      return;
+    }
+    await NotificationService.showNow(id: 2, title: '👋 Hi $_userName!', body: 'Notifications from Life are working.');
+    if (mounted) showInfoSnackBar(context, 'Test notification sent. Check your notification bar.');
+  }
+
+  void _showAbout() {
+    showAboutDialog(
+      context: context,
+      applicationName: 'Life',
+      applicationVersion: 'Version 1.0.0',
+      applicationIcon: const LifeLogo(fontSize: 26),
+      children: const [
+        Text('Plan tasks, build daily habits, reach long-term goals and reflect in your journal. Everything stays on your phone.'),
+      ],
+    );
   }
 
   void _toggleDarkMode(bool isDark) async {
@@ -49,7 +105,8 @@ class _ProfileScreenState extends State<ProfileScreen> {
     final box = Hive.box(HiveService.settingsBox);
     await box.put('isLoggedIn', false);
     await box.put('currentUser', '');
-    await box.put('userName', 'User');
+    // This person's reminders shouldn't fire for whoever logs in next.
+    await NotificationService.cancelAll();
     if (mounted) {
       // ignore: use_build_context_synchronously
       Navigator.of(context).pushNamedAndRemoveUntil('/login', (_) => false);
@@ -110,7 +167,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
                           ),
                           const SizedBox(height: 4),
                           Text(
-                            'Productivity Enthusiast',
+                            _subtitle,
                             style: TextStyle(color: Colors.white.withValues(alpha: 0.8), fontWeight: FontWeight.w500),
                           ),
                         ],
@@ -163,11 +220,19 @@ class _ProfileScreenState extends State<ProfileScreen> {
                                 ],
                               ),
                             ),
-                            const SizedBox(height: 18),
+                            const SizedBox(height: 10),
+                            Row(
+                              children: [
+                                Icon(Icons.bolt_rounded, size: 16, color: AppColors.violet),
+                                const SizedBox(width: 4),
+                                Text('$_xpBank XP to spend in the Habits shop', style: Theme.of(context).textTheme.bodyMedium?.copyWith(fontSize: 12.5, fontWeight: FontWeight.w600)),
+                              ],
+                            ),
+                            const SizedBox(height: 14),
                             Row(
                               children: [
                                 Expanded(
-                                  child: _StatTile(icon: Icons.ac_unit_rounded, color: AppColors.sky, value: _freezers, label: 'Streak Shields'),
+                                  child: _StatTile(icon: Icons.ac_unit_rounded, color: AppColors.sky, value: _freezers, label: 'Streak Freezes'),
                                 ),
                                 const SizedBox(width: 12),
                                 Expanded(
@@ -201,18 +266,34 @@ class _ProfileScreenState extends State<ProfileScreen> {
                               onTap: () => Navigator.push(context, MaterialPageRoute(builder: (_) => const StatisticsScreen())),
                             ),
                             _SettingRow(
-                              icon: Icons.cloud_done_rounded,
+                              icon: Icons.notifications_active_rounded,
+                              color: AppColors.royal,
+                              title: 'Daily check-in reminder',
+                              subtitle: ReminderSettings.dailyCheckIn == null ? 'Off' : 'Every day at ${ReminderSettings.dailyCheckIn!.format(context)} · tap to change',
+                              trailing: Switch(value: ReminderSettings.dailyCheckIn != null, onChanged: _setDailyReminder),
+                              onTap: () => _setDailyReminder(true),
+                            ),
+                            _SettingRow(
+                              icon: Icons.water_drop_rounded,
                               color: AppColors.sky,
-                              title: 'Local Hive Backup',
-                              subtitle: 'Data is synced 100% offline',
-                              onTap: () {},
+                              title: 'Water reminders',
+                              subtitle: 'Every 2 hours, 10 AM to 8 PM',
+                              trailing: Switch(value: ReminderSettings.waterReminders, onChanged: _setWaterReminders),
+                              onTap: () => _setWaterReminders(!ReminderSettings.waterReminders),
+                            ),
+                            _SettingRow(
+                              icon: Icons.send_rounded,
+                              color: AppColors.violet,
+                              title: 'Send a test notification',
+                              subtitle: 'Check that reminders reach your phone',
+                              onTap: _sendTestNotification,
                             ),
                             _SettingRow(
                               icon: Icons.info_outline_rounded,
                               color: AppColors.accent,
                               title: 'About Life',
-                              subtitle: 'Version 1.0.0 • Vortex Tech Week 4',
-                              onTap: () {},
+                              subtitle: 'Version 1.0.0',
+                              onTap: _showAbout,
                             ),
                           ],
                         ),

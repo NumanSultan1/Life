@@ -9,6 +9,7 @@ import '../../providers/task_provider.dart';
 import '../../providers/habit_provider.dart';
 import '../../providers/journal_provider.dart';
 import '../../providers/goal_provider.dart';
+import '../../services/reminder_settings.dart';
 
 class LoginScreen extends StatefulWidget {
   const LoginScreen({super.key});
@@ -34,7 +35,6 @@ class _LoginScreenState extends State<LoginScreen> {
 
     await HiveService.setCurrentUser(name);
     final box = Hive.box(HiveService.settingsBox);
-    await box.put('userName', name);
     await box.put('isLoggedIn', true);
 
     if (mounted) {
@@ -43,6 +43,10 @@ class _LoginScreenState extends State<LoginScreen> {
       Provider.of<HabitProvider>(context, listen: false).loadHabits();
       Provider.of<JournalProvider>(context, listen: false).loadEntries();
       Provider.of<GoalProvider>(context, listen: false).loadGoals();
+      // Bring back this person's reminders.
+      Provider.of<TaskProvider>(context, listen: false).resyncReminders();
+      Provider.of<HabitProvider>(context, listen: false).resyncReminders();
+      ReminderSettings.applyAll();
 
       Navigator.of(context).pushReplacementNamed('/home');
     }
@@ -68,7 +72,7 @@ class _LoginScreenState extends State<LoginScreen> {
                       padding: const EdgeInsets.fromLTRB(28, 48, 28, 70),
                       child: Column(
                         children: [
-                          const Floating(distance: 6, child: LifeLogo(fontSize: 54, onLiquid: true)),
+                          const Floating(distance: 6, child: LifeLogoBadge(fontSize: 40)),
                           const SizedBox(height: 22),
                           AnimatedSwitcher(
                             duration: const Duration(milliseconds: 300),

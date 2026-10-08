@@ -41,7 +41,7 @@ void main() {
 
     await tester.runAsync(() async {
       await tester.tap(find.byIcon(Icons.favorite_rounded).first);
-      await Future.delayed(const Duration(milliseconds: 300));
+      await Future.delayed(const Duration(seconds: 2));
     });
     await tester.pump(const Duration(seconds: 2));
 
@@ -61,7 +61,7 @@ void main() {
 
     await tester.runAsync(() async {
       await tester.tap(find.byIcon(Icons.favorite_rounded).first);
-      await Future.delayed(const Duration(milliseconds: 300));
+      await Future.delayed(const Duration(seconds: 2));
     });
     await tester.pump(const Duration(seconds: 2));
 

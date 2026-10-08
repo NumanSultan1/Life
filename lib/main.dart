@@ -5,6 +5,7 @@ import 'package:google_fonts/google_fonts.dart';
 import 'package:hive_flutter/hive_flutter.dart';
 import 'package:provider/provider.dart';
 import 'services/hive_service.dart';
+import 'services/notification_service.dart';
 import 'theme/app_theme.dart';
 import 'providers/task_provider.dart';
 import 'providers/habit_provider.dart';
@@ -27,6 +28,7 @@ void main() async {
     yield LicenseEntryWithLineBreaks(['google_fonts'], license);
   });
   await HiveService.init();
+  await NotificationService.init();
 
   final settingsBox = Hive.box(HiveService.settingsBox);
   final isDark = settingsBox.get('isDark', defaultValue: false);
