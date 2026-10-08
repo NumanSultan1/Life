@@ -1,4 +1,6 @@
+import 'package:flutter/foundation.dart';
 import 'package:hive_flutter/hive_flutter.dart';
+import 'secure_boxes.dart';
 import '../models/task.dart';
 import '../models/habit.dart';
 import '../models/journal_entry.dart';
@@ -14,19 +16,19 @@ class HiveService {
 
   static Future<void> init() async {
     await Hive.initFlutter();
-    await Hive.openBox(tasksBox);
-    await Hive.openBox(habitsBox);
-    await Hive.openBox(journalBox);
-    await Hive.openBox(goalsBox);
-    await Hive.openBox(settingsBox);
-    await Hive.openBox(usersBox);
+    final boxes = [tasksBox, habitsBox, journalBox, goalsBox, settingsBox, usersBox];
+    if (kIsWeb) {
+      for (final b in boxes) {
+        await Hive.openBox(b);
+      }
+    } else {
+      // Encrypted at rest with a key in the Android Keystore.
+      await SecureBoxes.openAll(boxes);
+    }
 
     final sBox = Hive.box(settingsBox);
-    if (sBox.get('userName') == null) {
-      await sBox.put('userName', 'User');
-      await sBox.put('moodToday', '😊');
-      await sBox.put('waterIntake', 0);
-      await sBox.put('studyMinutesToday', 0);
+    // App-wide flags only; everything about a person is stored per user.
+    if (sBox.get('hasSeenOnboarding') == null) {
       await sBox.put('isDark', false);
       await sBox.put('hasSeenOnboarding', false);
       await sBox.put('isLoggedIn', false);
@@ -36,7 +38,7 @@ class HiveService {
   // --- Current User Helpers ---
   static String getCurrentUser() {
     final box = Hive.box(settingsBox);
-    return box.get('currentUser', defaultValue: 'User') as String;
+    return box.get('currentUser', defaultValue: '') as String;
   }
 
   static Future<void> setCurrentUser(String userName) async {
@@ -53,9 +55,10 @@ class HiveService {
       await box.put('${userName}_xp', 0);
       await box.put('${userName}_moodToday', '😊');
       await box.put('${userName}_waterIntake', 0);
-      await box.put('${userName}_studyMinutesToday', 0);
       await box.put('${userName}_streakFreezers', 2);
-      await box.put('${userName}_streakRestoreTokens', 2);
+      await box.put('${userName}_streakRestoreTokens', 1);
+      await box.put('${userName}_xpBank', 0);
+      await box.put('${userName}_joined', DateTime.now().toIso8601String());
       await box.put('${userName}_lastResetDate', '');
     }
   }
@@ -69,6 +72,12 @@ class HiveService {
     int currentLevel = box.get('${user}_level', defaultValue: 1) as int;
 
     currentXp += xpAmount;
+    // Negative amounts take back XP from an undone action, never below 0.
+    if (currentXp < 0) currentXp = 0;
+
+    // Spendable balance moves with every gain or take-back.
+    final bank = getXpBank();
+    await box.put('${user}_xpBank', (bank + xpAmount).clamp(0, 1 << 30));
     int xpNeeded = currentLevel * 100;
 
     while (currentXp >= xpNeeded) {
@@ -79,6 +88,33 @@ class HiveService {
 
     await box.put('${user}_xp', currentXp);
     await box.put('${user}_level', currentLevel);
+  }
+
+  /// XP available to spend in the shop: everything earned minus what was
+  /// spent. Unlike the level bar it never resets on level-up.
+  static int getXpBank() {
+    final user = getCurrentUser();
+    final box = Hive.box(settingsBox);
+    final stored = box.get('${user}_xpBank');
+    if (stored is int) return stored;
+    // Profiles from before the shop balance existed: count all XP earned
+    // through previous levels plus progress in the current one.
+    final level = box.get('${user}_level', defaultValue: 1) as int;
+    final xp = box.get('${user}_xp', defaultValue: 0) as int;
+    var earned = xp;
+    for (var l = 1; l < level; l++) {
+      earned += l * 100;
+    }
+    // Not saved here; addXp/spendXp store the balance on the next change.
+    return earned;
+  }
+
+  /// Spends [amount] from the shop balance; false if there isn't enough.
+  static Future<bool> spendXp(int amount) async {
+    final bank = getXpBank();
+    if (bank < amount) return false;
+    await Hive.box(settingsBox).put('${getCurrentUser()}_xpBank', bank - amount);
+    return true;
   }
 
   // --- CRUD Task Helpers ---

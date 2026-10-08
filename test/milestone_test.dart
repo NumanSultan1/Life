@@ -30,6 +30,10 @@ void main() {
   });
 
   testWidgets('completing a habit that reaches a milestone shows the celebration', (tester) async {
+    // Phone-sized screen so the habit card is visible below the header.
+    tester.view.physicalSize = const Size(1080, 2400);
+    tester.view.devicePixelRatio = 2.7;
+    addTearDown(tester.view.reset);
     await tester.runAsync(() => HiveService.saveHabit(Habit(id: '1', title: 'Read', streak: 2, longestStreak: 2), 'tester'));
 
     await tester.pumpWidget(
@@ -40,16 +44,20 @@ void main() {
     );
 
     await tester.runAsync(() async {
-      await tester.tap(find.byIcon(Icons.local_fire_department_rounded).last);
-      await Future.delayed(const Duration(milliseconds: 300));
+      await tester.tap(find.byIcon(Icons.favorite_rounded).first);
+      await Future.delayed(const Duration(seconds: 2));
     });
-    await tester.pumpAndSettle();
+    await tester.pump(const Duration(seconds: 2));
 
     expect(find.text('DAY STREAK'), findsOneWidget);
     expect(find.textContaining('You just hit a 3 days milestone!'), findsOneWidget);
   });
 
   testWidgets('completing a habit that is not a milestone shows nothing', (tester) async {
+    // Phone-sized screen so the habit card is visible below the header.
+    tester.view.physicalSize = const Size(1080, 2400);
+    tester.view.devicePixelRatio = 2.7;
+    addTearDown(tester.view.reset);
     await tester.runAsync(() => HiveService.saveHabit(Habit(id: '1', title: 'Read', streak: 3, longestStreak: 3), 'tester'));
 
     await tester.pumpWidget(
@@ -60,10 +68,10 @@ void main() {
     );
 
     await tester.runAsync(() async {
-      await tester.tap(find.byIcon(Icons.local_fire_department_rounded).last);
-      await Future.delayed(const Duration(milliseconds: 300));
+      await tester.tap(find.byIcon(Icons.favorite_rounded).first);
+      await Future.delayed(const Duration(seconds: 2));
     });
-    await tester.pumpAndSettle();
+    await tester.pump(const Duration(seconds: 2));
 
     expect(find.text('DAY STREAK'), findsNothing);
   });

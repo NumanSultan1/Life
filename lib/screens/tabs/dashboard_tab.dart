@@ -1,3 +1,6 @@
+import '../../services/daily_xp.dart';
+import '../../widgets/life_buddy.dart';
+import '../../assistant/assistant_screen.dart';
 import 'package:flutter/material.dart';
 import 'package:hive_flutter/hive_flutter.dart';
 import 'package:provider/provider.dart';
@@ -9,6 +12,35 @@ import '../../services/hive_service.dart';
 import '../../widgets/dashboard/mood_tracker_card.dart';
 import '../../widgets/dashboard/water_tracker_card.dart';
 import '../../widgets/dashboard/motivational_quote_card.dart';
+import '../../widgets/common/milestone_dialog.dart';
+import '../../widgets/liquid/liquid.dart';
+import '../../models/habit.dart';
+import '../../utils/habit_icons.dart';
+import '../../models/task.dart';
+import '../../models/goal.dart';
+import '../../providers/goal_provider.dart';
+import '../../widgets/illustrations.dart';
+import '../../services/notification_service.dart';
+import '../../services/progress_history.dart';
+import '../../services/life_widget.dart';
+import '../../widgets/tip_card.dart';
+import '../achievements_screen.dart';
+import '../focus_screen.dart';
+import '../breathe_screen.dart';
+import '../medicines_screen.dart';
+import '../money_screen.dart';
+import '../activity_screen.dart';
+import '../insights_screen.dart';
+import '../weekly_review_screen.dart';
+import '../../services/reminder_settings.dart';
+import '../../utils/feedback.dart';
+import '../../providers/arc_provider.dart';
+import '../arcs/arc_card.dart';
+import '../profile_screen.dart';
+import 'goals_tab.dart';
+import 'habits_tab.dart';
+import 'plan_tab.dart';
+import 'tasks_tab.dart';
 
 class NotificationItem {
   final String id;
@@ -17,13 +49,7 @@ class NotificationItem {
   final IconData icon;
   final Color color;
 
-  NotificationItem({
-    required this.id,
-    required this.title,
-    required this.body,
-    required this.icon,
-    required this.color,
-  });
+  NotificationItem({required this.id, required this.title, required this.body, required this.icon, required this.color});
 }
 
 class DashboardTab extends StatefulWidget {
@@ -36,7 +62,7 @@ class DashboardTab extends StatefulWidget {
 }
 
 class _DashboardTabState extends State<DashboardTab> {
-  String _userName = 'User';
+  String _userName = '';
   int _level = 1;
   int _xp = 0;
 
@@ -44,6 +70,67 @@ class _DashboardTabState extends State<DashboardTab> {
   void initState() {
     super.initState();
     _loadUserData();
+    // After the first frame: overnight streak news, then the reminders prompt.
+    WidgetsBinding.instance.addPostFrameCallback((_) => _showStartupMessages());
+  }
+
+  Future<void> _showStartupMessages() async {
+    if (!mounted) return;
+    final events = [
+      ...Provider.of<HabitProvider>(context, listen: false).takePendingEvents(),
+      ...Provider.of<ArcProvider>(context, listen: false).takePendingEvents(),
+    ];
+    if (events.isNotEmpty) {
+      await showLiquidSheet(
+        context: context,
+        title: 'While you were away',
+        builder: (sheetContext) => Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            for (final e in events)
+              GlassCard(margin: const EdgeInsets.only(bottom: 10), padding: const EdgeInsets.all(14), child: Text(e, style: const TextStyle(fontWeight: FontWeight.w600, height: 1.4))),
+            const SizedBox(height: 8),
+            GlowButton(label: 'Got it', onPressed: () => Navigator.pop(sheetContext)),
+          ],
+        ),
+      );
+    }
+    if (!mounted || ReminderSettings.prompted) return;
+    await ReminderSettings.markPrompted();
+    if (!mounted) return;
+    await showLiquidSheet(
+      context: context,
+      title: 'Stay on track',
+      builder: (sheetContext) => Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          const Center(child: Illustration(IllustrationKind.allDone, size: 140)),
+          const SizedBox(height: 8),
+          const Text('Turn on reminders?', textAlign: TextAlign.center, style: TextStyle(fontSize: 20, fontWeight: FontWeight.w800)),
+          const SizedBox(height: 8),
+          Text(
+            'Life can send you a daily check-in at 8 PM and remind you about tasks and habits at the times you choose. You can change this anytime in Profile.',
+            textAlign: TextAlign.center,
+            style: Theme.of(sheetContext).textTheme.bodyMedium?.copyWith(height: 1.45),
+          ),
+          const SizedBox(height: 22),
+          GlowButton(
+            label: 'Turn on reminders',
+            icon: Icons.notifications_active_rounded,
+            onPressed: () async {
+              Navigator.pop(sheetContext);
+              if (await NotificationService.requestPermission()) {
+                await ReminderSettings.setDailyCheckIn(const TimeOfDay(hour: 20, minute: 0));
+                if (mounted) showInfoSnackBar(context, 'Reminders on. Daily check-in at 8:00 PM 🔔');
+              } else if (mounted) {
+                showInfoSnackBar(context, 'Notifications are blocked. You can allow them in your phone settings.');
+              }
+            },
+          ),
+          TextButton(onPressed: () => Navigator.pop(sheetContext), child: const Text('Not now')),
+        ],
+      ),
+    );
   }
 
   void _loadUserData() {
@@ -74,28 +161,32 @@ class _DashboardTabState extends State<DashboardTab> {
       String waterBody = 'You have drunk $waterIntake of 8 glasses today. Keep drinking water!';
       bool shouldShowWaterAlert = true;
 
-      if (currentHour >= 21) { // Past 9:00 PM
+      if (currentHour >= 21) {
+        // Past 9:00 PM
         if (waterIntake < 8) {
           waterTitle = 'Finish Strong! ⏰💧';
           waterBody = 'It is past 9:00 PM and you have only drunk $waterIntake of 8 glasses. Let\'s reach your daily goal!';
         } else {
           shouldShowWaterAlert = false;
         }
-      } else if (currentHour >= 18) { // Past 6:00 PM
+      } else if (currentHour >= 18) {
+        // Past 6:00 PM
         if (waterIntake < 6) {
           waterTitle = 'Boost Your Focus! ⏰💧';
           waterBody = 'It is past 6:00 PM and you have only drunk $waterIntake of 6 glasses. Hydration keeps you energized!';
         } else {
           shouldShowWaterAlert = false;
         }
-      } else if (currentHour >= 15) { // Past 3:00 PM
+      } else if (currentHour >= 15) {
+        // Past 3:00 PM
         if (waterIntake < 4) {
           waterTitle = 'Keep Going! ⏰💧';
           waterBody = 'It is past 3:00 PM and you have only drunk $waterIntake of 4 glasses. A quick glass of water boosts memory!';
         } else {
           shouldShowWaterAlert = false;
         }
-      } else if (currentHour >= 12) { // Past 12:00 PM
+      } else if (currentHour >= 12) {
+        // Past 12:00 PM
         if (waterIntake < 2) {
           waterTitle = 'Hydration Alert! ⏰💧';
           waterBody = 'It is past 12:00 PM and you have only drunk $waterIntake of 2 glasses. Take a quick sip to stay sharp!';
@@ -105,50 +196,71 @@ class _DashboardTabState extends State<DashboardTab> {
       }
 
       if (shouldShowWaterAlert) {
-        items.add(NotificationItem(
-          id: 'water_$todayStr',
-          title: waterTitle,
-          body: waterBody,
-          icon: Icons.local_drink_rounded,
-          color: Colors.blue,
-        ));
+        items.add(NotificationItem(id: 'water_$todayStr', title: waterTitle, body: waterBody, icon: Icons.local_drink_rounded, color: Colors.blue));
       }
     }
 
     // 2. High Priority Task Notification
-    final highPriorityTasks = taskProvider.tasks.where((t) => t.priority == 'High' && !t.isCompleted).toList();
+    final highPriorityTasks = taskProvider.todayTasks.where((t) => t.priority == 'High' && !t.isDoneOn(DateTime.now())).toList();
     for (var task in highPriorityTasks) {
-      items.add(NotificationItem(
-        id: 'task_${task.id}',
-        title: 'Urgent Task Pending ⚠️',
-        body: 'Do not forget to complete: "${task.title}"',
-        icon: Icons.priority_high_rounded,
-        color: Colors.red,
-      ));
+      items.add(NotificationItem(id: 'task_${task.id}', title: 'Urgent Task Pending ⚠️', body: 'Do not forget to complete: "${task.title}"', icon: Icons.priority_high_rounded, color: Colors.red));
     }
 
     // 3. Habit Completion Notification
     final uncompletedHabits = habitProvider.habits.where((h) => !h.isCompletedToday).toList();
     for (var habit in uncompletedHabits) {
-      items.add(NotificationItem(
-        id: 'habit_${habit.id}_$todayStr',
-        title: 'Maintain Your Streak! 🔥',
-        body: 'You haven\'t completed your "${habit.title}" habit today.',
-        icon: Icons.local_fire_department_rounded,
-        color: Colors.orange,
-      ));
+      items.add(
+        NotificationItem(
+          id: 'habit_${habit.id}_$todayStr',
+          title: 'Maintain Your Streak! 🔥',
+          body: 'You haven\'t completed your "${habit.title}" habit today.',
+          icon: Icons.local_fire_department_rounded,
+          color: Colors.orange,
+        ),
+      );
     }
 
-    // 4. Level Up Notification
+    // 4. Streak freezes used or streaks lost today
+    final streakEvents = List<String>.from(box.get('${user}_streakEvents_$todayStr', defaultValue: <String>[]) as List);
+    for (var i = 0; i < streakEvents.length; i++) {
+      final saved = streakEvents[i].startsWith('❄️');
+      items.add(
+        NotificationItem(
+          id: 'streak_${todayStr}_$i',
+          title: saved ? 'Streak freeze used ❄️' : 'Streak lost 💔',
+          body: streakEvents[i].substring(3),
+          icon: saved ? Icons.ac_unit_rounded : Icons.heart_broken_rounded,
+          color: saved ? Colors.lightBlue : Colors.pink,
+        ),
+      );
+    }
+
+    // 5. Goals not checked in yet today
+    final goalProvider = Provider.of<GoalProvider>(context, listen: false);
+    for (final goal in goalProvider.activeGoals.where((g) => !goalProvider.isCheckedInToday(g))) {
+      items.add(
+        NotificationItem(
+          id: 'goal_${goal.id}_$todayStr',
+          title: 'Did you work on "${goal.title}"? 🎯',
+          body: 'Check in today to move it ${(goal.dailyStep * 100).toStringAsFixed(1)}% closer.',
+          icon: Icons.flag_rounded,
+          color: Colors.deepPurple,
+        ),
+      );
+    }
+
+    // 6. Level Up Notification
     final currentLvl = box.get('${user}_level', defaultValue: 1) as int;
     if (currentLvl > 1) {
-      items.add(NotificationItem(
-        id: 'level_$currentLvl',
-        title: 'Level $currentLvl Unlocked! 🎉',
-        body: 'Congratulations on reaching Level $currentLvl! Keep up the amazing work.',
-        icon: Icons.emoji_events_rounded,
-        color: Colors.amber,
-      ));
+      items.add(
+        NotificationItem(
+          id: 'level_$currentLvl',
+          title: 'Level $currentLvl Unlocked! 🎉',
+          body: 'Congratulations on reaching Level $currentLvl! Keep up the amazing work.',
+          icon: Icons.emoji_events_rounded,
+          color: Colors.amber,
+        ),
+      );
     }
 
     // Filter out dismissed notifications
@@ -181,102 +293,135 @@ class _DashboardTabState extends State<DashboardTab> {
   }
 
   void _showNotificationsBottomSheet(BuildContext context) {
-    showModalBottomSheet(
+    showLiquidSheet(
       context: context,
-      shape: const RoundedRectangleBorder(
-        borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
-      ),
-      builder: (context) {
+      title: 'Notifications',
+      builder: (sheetContext) {
         return StatefulBuilder(
           builder: (context, setStateSheet) {
             final list = _getDynamicNotifications();
-            return Container(
-              padding: const EdgeInsets.all(24.0),
-              child: Column(
-                mainAxisSize: MainAxisSize.min,
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Row(
-                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            if (list.isEmpty) {
+              return const Padding(
+                padding: EdgeInsets.symmetric(vertical: 40.0),
+                child: Center(
+                  child: Column(
                     children: [
+                      Illustration(IllustrationKind.allDone, size: 150),
+                      SizedBox(height: 12),
+                      Text('All caught up!', style: TextStyle(fontSize: 17, fontWeight: FontWeight.w800)),
+                      SizedBox(height: 4),
                       Text(
-                        'Notifications Center 🔔',
-                        style: Theme.of(context).textTheme.titleLarge?.copyWith(fontWeight: FontWeight.bold),
+                        'No new alerts or suggestions at this time.',
+                        style: TextStyle(fontSize: 13, color: AppColors.textSecondary),
+                        textAlign: TextAlign.center,
                       ),
-                      if (list.isNotEmpty)
-                        TextButton(
-                          onPressed: () {
-                            _dismissAllNotifications(list);
-                            setStateSheet(() {});
-                            setState(() {}); // refresh parent
-                            Navigator.pop(context);
-                            ScaffoldMessenger.of(context).showSnackBar(
-                              const SnackBar(content: Text('All notifications cleared')),
-                            );
-                          },
-                          child: const Text('Clear All', style: TextStyle(color: Colors.red, fontWeight: FontWeight.bold)),
-                        ),
                     ],
                   ),
-                  const SizedBox(height: 16),
-                  if (list.isEmpty)
-                    const Padding(
-                      padding: EdgeInsets.symmetric(vertical: 40.0),
-                      child: Center(
-                        child: Column(
-                          children: [
-                            Icon(Icons.notifications_none_rounded, size: 64, color: Colors.grey),
-                            SizedBox(height: 12),
-                            Text(
-                              'All caught up!',
-                              style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold, color: Colors.grey),
+                ),
+              );
+            }
+            return Column(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                Align(
+                  alignment: Alignment.centerRight,
+                  child: TextButton(
+                    onPressed: () {
+                      _dismissAllNotifications(list);
+                      Navigator.pop(sheetContext);
+                      showInfoSnackBar(context, 'All notifications cleared', icon: Icons.notifications_off_rounded);
+                    },
+                    child: const Text(
+                      'Clear All',
+                      style: TextStyle(color: AppColors.danger, fontWeight: FontWeight.w800),
+                    ),
+                  ),
+                ),
+                for (var i = 0; i < list.length; i++)
+                  StaggerIn(
+                    key: ValueKey(list[i].id),
+                    index: i,
+                    child: GlassCard(
+                      margin: const EdgeInsets.only(bottom: 10),
+                      padding: const EdgeInsets.fromLTRB(14, 12, 4, 12),
+                      child: Row(
+                        children: [
+                          Container(
+                            width: 42,
+                            height: 42,
+                            decoration: BoxDecoration(shape: BoxShape.circle, color: list[i].color.withValues(alpha: 0.14)),
+                            child: Icon(list[i].icon, color: list[i].color, size: 20),
+                          ),
+                          const SizedBox(width: 12),
+                          Expanded(
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Text(list[i].title, style: const TextStyle(fontWeight: FontWeight.w800, fontSize: 14)),
+                                const SizedBox(height: 2),
+                                Text(list[i].body, style: Theme.of(context).textTheme.bodyMedium?.copyWith(fontSize: 12.5)),
+                              ],
                             ),
-                            SizedBox(height: 4),
-                            Text(
-                              'No new alerts or suggestions at this time.',
-                              style: TextStyle(fontSize: 13, color: Colors.grey),
-                              textAlign: TextAlign.center,
-                            ),
-                          ],
-                        ),
-                      ),
-                    )
-                  else
-                    Flexible(
-                      child: ListView.builder(
-                        shrinkWrap: true,
-                        itemCount: list.length,
-                        itemBuilder: (context, index) {
-                          final item = list[index];
-                          return Card(
-                            margin: const EdgeInsets.only(bottom: 12),
-                            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-                            child: ListTile(
-                              leading: CircleAvatar(
-                                backgroundColor: item.color.withValues(alpha: 0.12),
-                                child: Icon(item.icon, color: item.color),
-                              ),
-                              title: Text(item.title, style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 14)),
-                              subtitle: Text(item.body, style: const TextStyle(fontSize: 12)),
-                              trailing: IconButton(
-                                icon: const Icon(Icons.close_rounded, size: 20),
-                                onPressed: () {
-                                  _dismissNotification(item.id);
-                                  setStateSheet(() {});
-                                  setState(() {}); // refresh parent
-                                },
-                              ),
-                            ),
-                          );
-                        },
+                          ),
+                          IconButton(
+                            icon: const Icon(Icons.close_rounded, size: 20),
+                            onPressed: () {
+                              _dismissNotification(list[i].id);
+                              setStateSheet(() {});
+                            },
+                          ),
+                        ],
                       ),
                     ),
-                ],
-              ),
+                  ),
+              ],
             );
           },
         );
       },
+    );
+  }
+
+  String get _greeting {
+    final hour = DateTime.now().hour;
+    if (hour < 12) return 'Good Morning';
+    if (hour < 17) return 'Good Afternoon';
+    return 'Good Evening';
+  }
+
+  void _openProfile() {
+    Navigator.push(context, MaterialPageRoute(builder: (_) => const ProfileScreen())).then((_) {
+      if (mounted) setState(() {});
+    });
+  }
+
+  void _openGoals() {
+    planSegment.value = 1;
+    widget.onNavigateTab(1);
+  }
+
+  void _openTasks() {
+    planSegment.value = 0;
+    widget.onNavigateTab(1);
+  }
+
+  void _showHowItWorks() {
+    showLiquidSheet(
+      context: context,
+      title: 'How it works',
+      builder: (sheetContext) => const Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          _HowRow(icon: Icons.checklist_rounded, title: 'Tasks', text: 'One-off things to do. Tick them off when they are done.'),
+          _HowRow(icon: Icons.loop_rounded, title: 'Habits', text: 'Things you repeat every day. Each day in a row grows your streak 🔥.'),
+          _HowRow(icon: Icons.flag_rounded, title: 'Goals', text: 'Big things over weeks. Check in each day you work on one to move it forward (+10 XP).'),
+          _HowRow(icon: Icons.auto_stories_rounded, title: 'Journal', text: 'Write how your day went. Each entry earns 30 XP.'),
+          _HowRow(icon: Icons.emoji_events_rounded, title: 'XP & levels', text: 'Today\'s tasks and habits are worth 50 XP: all done = 50, half done = 25. Journal, focus and challenges add more. Fill the bar to level up.'),
+          _HowRow(icon: Icons.ac_unit_rounded, title: 'Streak freezes', text: 'Miss a day and a freeze is used automatically, so your streak survives. You start with 2; buy more for 500 XP.'),
+          _HowRow(icon: Icons.autorenew_rounded, title: 'Restore tokens', text: 'Out of freezes and lost a streak? A restore token brings it back. You start with 1; buy more for 700 XP.'),
+          _HowRow(icon: Icons.notifications_active_rounded, title: 'Reminders', text: 'Set a time on any task or habit and Life will notify you. Turn on a daily check-in in Profile.'),
+        ],
+      ),
     );
   }
 
@@ -285,8 +430,9 @@ class _DashboardTabState extends State<DashboardTab> {
     _loadUserData(); // Ensure live level/xp is shown on rebuild
     final taskProvider = Provider.of<TaskProvider>(context);
     final habitProvider = Provider.of<HabitProvider>(context);
+    final goalProvider = Provider.of<GoalProvider>(context);
+    final textTheme = Theme.of(context).textTheme;
     final isDark = Theme.of(context).brightness == Brightness.dark;
-    final todayFormatted = DateFormat('EEEE, d MMMM yyyy').format(DateTime.now());
 
     final notificationList = _getDynamicNotifications();
     final unreadCount = notificationList.length;
@@ -294,334 +440,818 @@ class _DashboardTabState extends State<DashboardTab> {
     final xpNeeded = _level * 100;
     final xpProgress = _xp / xpNeeded;
 
-    return SingleChildScrollView(
-      padding: const EdgeInsets.all(20.0),
-      child: Column(
+    // Everything that can be completed today counts toward the ring.
+    final goalsToday = goalProvider.activeGoals.length + goalProvider.goals.where((g) => g.progress >= 1.0 && goalProvider.isCheckedInToday(g)).length;
+    final goalsDone = goalProvider.goals.where(goalProvider.isCheckedInToday).length;
+    final todayTasks = taskProvider.todayTasks;
+    final totalItems = todayTasks.length + habitProvider.totalHabits + goalsToday;
+    final doneItems = taskProvider.todayCompletedCount + habitProvider.completedTodayCount + goalsDone;
+    // Remember today's result so the weekly chart below includes it.
+    // (Hive updates its in-memory copy synchronously; it only writes when
+    // the numbers change.)
+    ProgressHistory.recordToday(doneItems, totalItems);
+    final dayProgress = totalItems == 0 ? 0.0 : doneItems / totalItems;
+
+    // Only the built-in water task means the user hasn't added tasks yet.
+    final hasOwnTask = taskProvider.hasOwnTasks;
+    final setupSteps = [
+      (Icons.add_task_rounded, 'Add a task', 'Something to get done today', hasOwnTask, () => showAddTaskSheet(context)),
+      (Icons.loop_rounded, 'Create a habit', 'Something to repeat every day', habitProvider.totalHabits > 0, () => showAddHabitSheet(context)),
+      (Icons.flag_rounded, 'Set a goal', 'Something big to work toward', goalProvider.goals.isNotEmpty, () => showAddGoalSheet(context)),
+    ];
+    final setupLeft = setupSteps.where((s) => !s.$4).length;
+
+    final openTasks = todayTasks.where((t) => !t.isDoneOn(DateTime.now())).toList();
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (mounted) checkNewAchievements(context);
+    });
+    LifeWidget.update(done: doneItems, total: totalItems, nextTask: openTasks.isEmpty ? null : openTasks.first.title);
+
+    return CustomScrollView(
+      slivers: [
+        SliverToBoxAdapter(
+          child: SafeArea(
+            bottom: false,
+            child: Padding(
+              padding: const EdgeInsets.fromLTRB(20, 16, 20, 18),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
+                  StaggerIn(
+                    child: Row(
+                      children: [
+                        Semantics(
+                          button: true,
+                          label: 'Open profile',
+                          child: GestureDetector(
+                            onTap: _openProfile,
+                            child: Container(
+                              width: 48,
+                              height: 48,
+                              alignment: Alignment.center,
+                              decoration: BoxDecoration(
+                                shape: BoxShape.circle,
+                                gradient: AppColors.ringCenterGradient,
+                                border: Border.all(color: Colors.white, width: 2),
+                                boxShadow: [BoxShadow(color: AppColors.pink.withValues(alpha: 0.4), blurRadius: 14, offset: const Offset(0, 5))],
+                              ),
+                              child: Text(
+                                _userName.isNotEmpty ? _userName[0].toUpperCase() : 'U',
+                                style: const TextStyle(color: AppColors.navy, fontWeight: FontWeight.w800, fontSize: 20),
+                              ),
+                            ),
+                          ),
+                        ),
+                        const SizedBox(width: 12),
+                        Expanded(
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Text('$_greeting 👋', style: textTheme.bodyMedium?.copyWith(fontSize: 13, fontWeight: FontWeight.w600)),
+                              Text(_userName, style: textTheme.titleLarge?.copyWith(fontSize: 21), overflow: TextOverflow.ellipsis),
+                            ],
+                          ),
+                        ),
+                        const StepsPill(),
+                        const SizedBox(width: 8),
+                        GlassIconButton(
+                          icon: Icons.notifications_none_rounded,
+                          onLiquid: false,
+                          onTap: () => _showNotificationsBottomSheet(context),
+                          badge: unreadCount > 0
+                              ? Container(
+                                  padding: const EdgeInsets.all(4),
+                                  constraints: const BoxConstraints(minWidth: 18, minHeight: 18),
+                                  decoration: const BoxDecoration(color: AppColors.accent, shape: BoxShape.circle),
+                                  child: Text('$unreadCount', textAlign: TextAlign.center, style: const TextStyle(color: Colors.white, fontSize: 9, fontWeight: FontWeight.w800)),
+                                )
+                              : null,
+                        ),
+                      ],
+                    ),
+                  ),
+                  const SizedBox(height: 18),
+                  // Today at a glance: one ring for everything, plus level.
+                  StaggerIn(
+                    index: 1,
+                    child: GlassCard(
+                      onTap: () => widget.onNavigateTab(6),
+                      padding: const EdgeInsets.all(16),
+                      child: Row(
+                        children: [
+                          SegmentedRing(progress: dayProgress, size: 104, caption: 'today'),
+                          const SizedBox(width: 16),
+                          Expanded(
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Text(
+                                  totalItems == 0
+                                      ? "Let's plan your day"
+                                      : doneItems == totalItems
+                                          ? 'All done for today! 🎉'
+                                          : '$doneItems of $totalItems done today',
+                                  style: textTheme.titleMedium?.copyWith(fontSize: 16),
+                                ),
+                                const SizedBox(height: 4),
+                                Text('Today\'s XP: ${DailyXp.earnedToday} of ${DailyXp.max} · tasks and habits', style: textTheme.bodyMedium?.copyWith(fontSize: 12.5, height: 1.3)),
+                                const SizedBox(height: 10),
+                                Row(
+                                  children: [
+                                    Text('Level $_level', style: TextStyle(fontWeight: FontWeight.w800, fontSize: 12, color: AppColors.accentOn(context))),
+                                    const SizedBox(width: 8),
+                                    Expanded(child: _GradientBar(value: xpProgress, track: isDark ? Colors.white.withValues(alpha: 0.12) : const Color(0xFFE3E6F5))),
+                                    const SizedBox(width: 8),
+                                    Text('$_xp/$xpNeeded XP', style: textTheme.bodyMedium?.copyWith(fontSize: 11, fontWeight: FontWeight.w700)),
+                                  ],
+                                ),
+                              ],
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ),
+                  const SizedBox(height: 14),
+                  const StaggerIn(index: 2, child: LiveMoveCard()),
+                  const SizedBox(height: 14),
+                  StaggerIn(index: 2, child: _WeeklyProgressCard(onTap: () => widget.onNavigateTab(6))),
+                  if (setupLeft > 0) ...[
+                    const SizedBox(height: 14),
+                    StaggerIn(index: 2, child: _GetStartedCard(steps: setupSteps, onHowItWorks: _showHowItWorks)),
+                  ],
+                ],
+              ),
+            ),
+          ),
+        ),
+        SliverFillRemaining(
+          hasScrollBody: false,
+          child: LiquidSheet(
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                _SheetTitle(title: 'Today', subtitle: 'Tap anything to mark it done', icon: Icons.help_outline_rounded, iconLabel: 'How it works', onTap: _showHowItWorks),
+                const _AssistantCard(),
+                const SizedBox(height: 12),
+                // One entry point to all challenges (and today's progress in joined ones).
+                const ChallengesHomeCard(),
+                const SizedBox(height: 12),
+                const _ToolsRow(),
+                const SizedBox(height: 16),
+                const TipCard(
+                  id: 'home_today',
+                  onLiquid: true,
+                  text: 'Tip: tap a habit, task or goal below to tick it off. The ring at the top fills as your day gets done.',
+                ),
+                if (totalItems > 0 && doneItems == totalItems)
+                  GlassCard(
+                    onLiquid: true,
+                    margin: const EdgeInsets.only(bottom: 16),
+                    child: Row(
+                      children: [
+                        const Illustration(IllustrationKind.allDone, size: 90),
+                        const SizedBox(width: 12),
+                        Expanded(
+                          child: Text("You've finished everything for today. Enjoy the rest of your day!", style: TextStyle(color: Colors.white.withValues(alpha: 0.95), fontWeight: FontWeight.w700, height: 1.4)),
+                        ),
+                      ],
+                    ),
+                  ),
+
+                // Habits
+                _SectionLabel(label: 'Habits to keep', action: 'See all', onAction: () => widget.onNavigateTab(2)),
+                if (habitProvider.habits.isEmpty)
+                  _EmptyRow(icon: Icons.loop_rounded, text: 'No habits yet. Create one to start a streak.', onTap: () => showAddHabitSheet(context))
+                else
+                  for (var i = 0; i < habitProvider.habits.length && i < 5; i++)
+                    StaggerIn(key: ValueKey('dash_${habitProvider.habits[i].id}'), index: i, child: _DashHabitCard(habit: habitProvider.habits[i])),
+
+                // Tasks
+                const SizedBox(height: 10),
+                _SectionLabel(label: 'Tasks', action: 'See all', onAction: _openTasks),
+                if (todayTasks.isEmpty)
+                  _EmptyRow(icon: Icons.add_task_rounded, text: 'No tasks yet. Add something to do today.', onTap: () => showAddTaskSheet(context))
+                else if (openTasks.isEmpty)
+                  _EmptyRow(icon: Icons.check_circle_rounded, text: 'Every task is done. Nice!', onTap: _openTasks)
+                else
+                  ...openTasks.take(4).map((task) => _DashTaskRow(key: ValueKey('dash_task_${task.id}'), task: task)),
+
+                // Goals
+                const SizedBox(height: 10),
+                _SectionLabel(label: 'Goal check-ins', action: 'See all', onAction: _openGoals),
+                if (goalProvider.goals.isEmpty)
+                  _EmptyRow(icon: Icons.flag_rounded, text: 'No goals yet. Set one to work toward.', onTap: () => showAddGoalSheet(context))
+                else if (goalProvider.activeGoals.isEmpty)
+                  _EmptyRow(icon: Icons.emoji_events_rounded, text: 'All your goals are achieved!', onTap: _openGoals)
+                else
+                  ...goalProvider.activeGoals.take(3).map((g) => _DashGoalRow(key: ValueKey('dash_goal_${g.id}'), goal: g, checked: goalProvider.isCheckedInToday(g))),
+
+                const SizedBox(height: 22),
+                const _SectionLabel(label: 'Check in with yourself'),
+                const MoodTrackerCard(onLiquid: true),
+                const SizedBox(height: 14),
+                const WaterTrackerCard(onLiquid: true),
+                const SizedBox(height: 14),
+                GlassCard(
+                  onLiquid: true,
+                  onTap: () => widget.onNavigateTab(6),
+                  child: const Row(
+                    children: [
+                      Illustration(IllustrationKind.stats, size: 64),
+                      SizedBox(width: 12),
+                      Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text('See your progress', style: TextStyle(fontSize: 16, fontWeight: FontWeight.w800)),
+                            SizedBox(height: 2),
+                            Text('Stats for tasks, habits, journal and goals', style: TextStyle(fontSize: 12.5)),
+                          ],
+                        ),
+                      ),
+                      Icon(Icons.chevron_right_rounded),
+                    ],
+                  ),
+                ),
+                const SizedBox(height: 14),
+                const MotivationalQuoteCard(),
+              ],
+            ),
+          ),
+        ),
+      ],
+    );
+  }
+}
+
+class _HowRow extends StatelessWidget {
+  final IconData icon;
+  final String title;
+  final String text;
+
+  const _HowRow({required this.icon, required this.title, required this.text});
+
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 16),
+      child: Row(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          // Top Greeting Header
+          Container(
+            width: 40,
+            height: 40,
+            decoration: BoxDecoration(shape: BoxShape.circle, color: AppColors.accentOn(context).withValues(alpha: 0.14)),
+            child: Icon(icon, color: AppColors.accentOn(context), size: 20),
+          ),
+          const SizedBox(width: 14),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(title, style: const TextStyle(fontWeight: FontWeight.w800, fontSize: 15)),
+                const SizedBox(height: 2),
+                Text(text, style: Theme.of(context).textTheme.bodyMedium?.copyWith(fontSize: 13, height: 1.4)),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+/// Three-step checklist shown until the user has a task, habit and goal.
+class _GetStartedCard extends StatelessWidget {
+  final List<(IconData, String, String, bool, VoidCallback)> steps;
+  final VoidCallback onHowItWorks;
+
+  const _GetStartedCard({required this.steps, required this.onHowItWorks});
+
+  @override
+  Widget build(BuildContext context) {
+    final textTheme = Theme.of(context).textTheme;
+    final done = steps.where((s) => s.$4).length;
+    return GlassCard(
+      padding: const EdgeInsets.all(16),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
           Row(
-            mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
+              const Illustration(IllustrationKind.welcome, size: 64),
+              const SizedBox(width: 12),
               Expanded(
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    Text(
-                      'Good Morning, $_userName 👋',
-                      style: Theme.of(context).textTheme.titleLarge?.copyWith(
-                            fontSize: 22,
-                            fontWeight: FontWeight.bold,
-                          ),
-                    ),
-                    const SizedBox(height: 4),
-                    Text(
-                      todayFormatted,
-                      style: TextStyle(
-                        color: isDark ? AppColors.darkTextSecondary : AppColors.textSecondary,
-                        fontSize: 13,
-                      ),
-                    ),
+                    Text('Get started · $done of 3', style: textTheme.titleMedium?.copyWith(fontSize: 16)),
+                    const SizedBox(height: 2),
+                    Text('Set up your day in three quick steps.', style: textTheme.bodyMedium?.copyWith(fontSize: 12.5)),
                   ],
                 ),
-              ),
-              Row(
-                children: [
-                  IconButton(
-                    onPressed: () => _showNotificationsBottomSheet(context),
-                    icon: Stack(
-                      clipBehavior: Clip.none,
-                      children: [
-                        const Icon(Icons.notifications_none_rounded, size: 28),
-                        if (unreadCount > 0)
-                          Positioned(
-                            right: -2,
-                            top: -2,
-                            child: Container(
-                              padding: const EdgeInsets.all(3),
-                              decoration: const BoxDecoration(
-                                color: Colors.red,
-                                shape: BoxShape.circle,
-                              ),
-                              constraints: const BoxConstraints(
-                                minWidth: 16,
-                                minHeight: 16,
-                              ),
-                              child: Text(
-                                '$unreadCount',
-                                style: const TextStyle(
-                                  color: Colors.white,
-                                  fontSize: 8,
-                                  fontWeight: FontWeight.bold,
-                                ),
-                                textAlign: TextAlign.center,
-                              ),
-                            ),
-                          ),
-                      ],
-                    ),
-                  ),
-                  const SizedBox(width: 8),
-                  CircleAvatar(
-                    radius: 20,
-                    backgroundColor: AppColors.primary,
-                    child: Text(
-                      _userName.isNotEmpty ? _userName[0].toUpperCase() : 'U',
-                      style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold),
-                    ),
-                  ),
-                ],
-              ),
-            ],
-          ),
-          const SizedBox(height: 16),
-
-          // Gamified XP & Level bar on Dashboard
-          Container(
-            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-            decoration: BoxDecoration(
-              color: isDark ? const Color(0xFF1E293B) : const Color(0xFFF8FAFC),
-              borderRadius: BorderRadius.circular(16),
-              border: Border.all(color: isDark ? const Color(0xFF334155) : const Color(0xFFE2E8F0)),
-            ),
-            child: Row(
-              children: [
-                const Icon(Icons.emoji_events_rounded, color: Colors.amber, size: 24),
-                const SizedBox(width: 12),
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Row(
-                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                        children: [
-                          Text(
-                            'Level $_level Hero',
-                            style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 13),
-                          ),
-                          Text(
-                            '$_xp / $xpNeeded XP',
-                            style: const TextStyle(fontSize: 12, color: Colors.grey, fontWeight: FontWeight.bold),
-                          ),
-                        ],
-                      ),
-                      const SizedBox(height: 6),
-                      ClipRRect(
-                        borderRadius: BorderRadius.circular(4),
-                        child: LinearProgressIndicator(
-                          value: xpProgress,
-                          minHeight: 6,
-                          backgroundColor: Colors.grey.shade200,
-                          valueColor: const AlwaysStoppedAnimation<Color>(AppColors.primary),
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-              ],
-            ),
-          ),
-          const SizedBox(height: 20),
-
-          // Overview Metrics Card
-          Container(
-            width: double.infinity,
-            padding: const EdgeInsets.all(20),
-            decoration: BoxDecoration(
-              gradient: const LinearGradient(
-                colors: [Color(0xFF5B6CFF), Color(0xFF7C4DFF)],
-                begin: Alignment.topLeft,
-                end: Alignment.bottomRight,
-              ),
-              borderRadius: BorderRadius.circular(24),
-              boxShadow: [
-                BoxShadow(
-                  color: const Color(0xFF5B6CFF).withValues(alpha: 0.3),
-                  blurRadius: 16,
-                  offset: const Offset(0, 6),
-                ),
-              ],
-            ),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                const Row(
-                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                  children: [
-                    Text(
-                      "TODAY'S OVERVIEW",
-                      style: TextStyle(color: Colors.white70, fontSize: 12, fontWeight: FontWeight.bold, letterSpacing: 1.2),
-                    ),
-                    Icon(Icons.auto_awesome_rounded, color: Colors.white70, size: 20),
-                  ],
-                ),
-                const SizedBox(height: 16),
-                Row(
-                  mainAxisAlignment: MainAxisAlignment.spaceAround,
-                  children: [
-                    _buildMetric('Tasks', '${taskProvider.completedCount}/${taskProvider.totalCount}', Icons.check_circle_rounded),
-                    _buildMetric('Habits', '${habitProvider.completedTodayCount}/${habitProvider.totalHabits}', Icons.loop_rounded),
-                    _buildMetric('Streak', '${habitProvider.habits.fold(0, (max, h) => h.streak > max ? h.streak : max)} Days', Icons.local_fire_department_rounded),
-                    _buildMetric('Mood', Hive.box(HiveService.settingsBox).get('${_userName}_moodToday', defaultValue: '😊'), Icons.mood_rounded),
-                  ],
-                ),
-              ],
-            ),
-          ),
-          const SizedBox(height: 24),
-
-          // Interactive Cards: Mood Tracker & Water Tracker
-          const MoodTrackerCard(),
-          const SizedBox(height: 16),
-          const WaterTrackerCard(),
-          const SizedBox(height: 24),
-
-          // Quick Actions Grid
-          Text(
-            'Quick Actions',
-            style: Theme.of(context).textTheme.titleLarge?.copyWith(fontSize: 18, fontWeight: FontWeight.bold),
-          ),
-          const SizedBox(height: 12),
-          GridView.count(
-            crossAxisCount: 3,
-            shrinkWrap: true,
-            physics: const NeverScrollableScrollPhysics(),
-            crossAxisSpacing: 12,
-            mainAxisSpacing: 12,
-            childAspectRatio: 1.15,
-            children: [
-              _buildActionCard(context, 'Add Task', Icons.add_task_rounded, const Color(0xFF5B6CFF), () => widget.onNavigateTab(1)),
-              _buildActionCard(context, 'Add Habit', Icons.loop_rounded, const Color(0xFF7C4DFF), () => widget.onNavigateTab(2)),
-              _buildActionCard(context, 'Journal', Icons.edit_note_rounded, const Color(0xFF4CAF50), () => widget.onNavigateTab(3)),
-              _buildActionCard(context, 'Goals', Icons.flag_rounded, const Color(0xFFEC4899), () => widget.onNavigateTab(4)),
-              _buildActionCard(context, 'Statistics', Icons.bar_chart_rounded, const Color(0xFF06B6D4), () => widget.onNavigateTab(5)),
-              _buildActionCard(context, 'Profile', Icons.person_rounded, const Color(0xFFFF9800), () => widget.onNavigateTab(5)),
-            ],
-          ),
-          const SizedBox(height: 24),
-
-          // Today's Tasks Brief
-          Row(
-            mainAxisAlignment: MainAxisAlignment.spaceBetween,
-            children: [
-              Text(
-                "Today's Tasks",
-                style: Theme.of(context).textTheme.titleLarge?.copyWith(fontSize: 18, fontWeight: FontWeight.bold),
-              ),
-              TextButton(
-                onPressed: () => widget.onNavigateTab(1),
-                child: const Text('View All', style: TextStyle(color: AppColors.primary, fontWeight: FontWeight.w600)),
               ),
             ],
           ),
           const SizedBox(height: 8),
-          if (taskProvider.tasks.isEmpty)
-            const Padding(
-              padding: EdgeInsets.symmetric(vertical: 20),
-              child: Center(
-                child: Text('No tasks created yet. Tap + to add one!', style: TextStyle(color: Colors.grey)),
-              ),
-            )
-          else
-            ...taskProvider.tasks.take(3).map((task) {
-              return Container(
-                margin: const EdgeInsets.only(bottom: 10),
-                padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-                decoration: BoxDecoration(
-                  color: isDark ? const Color(0xFF1E293B) : Colors.white,
-                  borderRadius: BorderRadius.circular(16),
-                  border: Border.all(color: isDark ? const Color(0xFF334155) : const Color(0xFFF1F5F9)),
-                ),
+          for (final s in steps)
+            Pressable(
+              onTap: s.$4 ? null : s.$5,
+              child: Padding(
+                padding: const EdgeInsets.symmetric(vertical: 8),
                 child: Row(
                   children: [
-                    Checkbox(
-                      value: task.isCompleted,
-                      onChanged: (_) => taskProvider.toggleTaskStatus(task.id),
-                      activeColor: AppColors.primary,
+                    AnimatedContainer(
+                      duration: const Duration(milliseconds: 300),
+                      width: 34,
+                      height: 34,
+                      decoration: BoxDecoration(shape: BoxShape.circle, color: s.$4 ? AppColors.success : AppColors.accentOn(context).withValues(alpha: 0.12)),
+                      child: Icon(s.$4 ? Icons.check_rounded : s.$1, size: 18, color: s.$4 ? Colors.white : AppColors.accentOn(context)),
                     ),
+                    const SizedBox(width: 12),
                     Expanded(
                       child: Column(
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
                           Text(
-                            task.title,
-                            style: TextStyle(
-                              fontSize: 15,
-                              fontWeight: FontWeight.w600,
-                              decoration: task.isCompleted ? TextDecoration.lineThrough : null,
-                              color: task.isCompleted ? Colors.grey : null,
-                            ),
+                            s.$2,
+                            style: TextStyle(fontWeight: FontWeight.w700, fontSize: 14, decoration: s.$4 ? TextDecoration.lineThrough : null),
                           ),
-                          if (task.description.isNotEmpty) ...[
-                            const SizedBox(height: 3),
-                            Text(
-                              task.description,
-                              style: TextStyle(
-                                fontSize: 12,
-                                color: Colors.grey,
-                                decoration: task.isCompleted ? TextDecoration.lineThrough : null,
-                              ),
-                              maxLines: 1,
-                              overflow: TextOverflow.ellipsis,
-                            ),
-                          ],
+                          Text(s.$3, style: textTheme.bodyMedium?.copyWith(fontSize: 12)),
                         ],
                       ),
                     ),
-                    Container(
-                      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-                      decoration: BoxDecoration(
-                        color: AppColors.primary.withValues(alpha: 0.1),
-                        borderRadius: BorderRadius.circular(8),
-                      ),
-                      child: Text(
-                        task.priority,
-                        style: const TextStyle(color: AppColors.primary, fontSize: 11, fontWeight: FontWeight.bold),
-                      ),
-                    ),
+                    if (!s.$4) Icon(Icons.chevron_right_rounded, color: textTheme.bodyMedium?.color),
                   ],
                 ),
-              );
-            }),
-          const SizedBox(height: 16),
-          const MotivationalQuoteCard(),
+              ),
+            ),
+          Align(
+            alignment: Alignment.centerLeft,
+            child: TextButton.icon(
+              onPressed: onHowItWorks,
+              icon: Icon(Icons.help_outline_rounded, size: 18, color: AppColors.accentOn(context)),
+              label: Text('How does this app work?', style: TextStyle(color: AppColors.accentOn(context), fontWeight: FontWeight.w700)),
+            ),
+          ),
         ],
       ),
     );
   }
+}
 
-  static Widget _buildMetric(String label, String value, IconData icon) {
+/// Opens the Life Assistant (voice-first).
+class _AssistantCard extends StatelessWidget {
+  const _AssistantCard();
+
+  @override
+  Widget build(BuildContext context) {
+    return Semantics(
+      button: true,
+      label: 'Talk to Life, your assistant',
+      excludeSemantics: true,
+      child: GlassCard(
+        onLiquid: true,
+        onTap: () => Navigator.push(context, MaterialPageRoute(builder: (_) => const AssistantScreen())),
+        child: Row(
+          children: [
+            const LifeBuddy(size: 52),
+            const SizedBox(width: 12),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  const Text('Talk to Life', style: TextStyle(color: Colors.white, fontSize: 16, fontWeight: FontWeight.w800)),
+                  Text('"Remind me to call Abu at 6" · "سبا ما ته یاد کړه"', maxLines: 1, overflow: TextOverflow.ellipsis, style: TextStyle(color: Colors.white.withValues(alpha: 0.85), fontSize: 12.5)),
+                ],
+              ),
+            ),
+            const Icon(Icons.chevron_right_rounded, color: Colors.white),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+/// Shortcuts to Health, Medicines, Breathe, Money, Focus, Review, Insights and Badges.
+class _ToolsRow extends StatelessWidget {
+  const _ToolsRow();
+
+  @override
+  Widget build(BuildContext context) {
+    final tools = <(IconData, String, Widget)>[
+      (Icons.favorite_rounded, 'Health', const ActivityScreen()),
+      (Icons.medication_rounded, 'Medicines', const MedicinesScreen()),
+      (Icons.spa_rounded, 'Breathe', const BreatheScreen()),
+      (Icons.account_balance_wallet_rounded, 'Money', const MoneyScreen()),
+      (Icons.center_focus_strong_rounded, 'Focus', const FocusScreen()),
+      (Icons.event_note_rounded, 'Review', const WeeklyReviewScreen()),
+      (Icons.insights_rounded, 'Insights', const InsightsScreen()),
+      (Icons.military_tech_rounded, 'Badges', const AchievementsScreen()),
+    ];
     return Column(
       children: [
-        Icon(icon, color: Colors.white, size: 22),
-        const SizedBox(height: 6),
-        Text(value, style: const TextStyle(color: Colors.white, fontSize: 16, fontWeight: FontWeight.bold)),
-        const SizedBox(height: 2),
-        Text(label, style: const TextStyle(color: Colors.white70, fontSize: 12)),
+        for (var row = 0; row < tools.length; row += 4) ...[
+          if (row > 0) const SizedBox(height: 10),
+          _toolRow(context, tools.sublist(row, row + 4)),
+        ],
       ],
     );
   }
 
-  static Widget _buildActionCard(BuildContext context, String label, IconData icon, Color color, VoidCallback onTap) {
-    final isDark = Theme.of(context).brightness == Brightness.dark;
-    return InkWell(
+  Widget _toolRow(BuildContext context, List<(IconData, String, Widget)> tools) {
+    return Row(
+      children: [
+        for (var i = 0; i < tools.length; i++) ...[
+          if (i > 0) const SizedBox(width: 10),
+          Expanded(
+            child: Semantics(
+              button: true,
+              label: 'Open ${tools[i].$2}',
+              excludeSemantics: true,
+              child: GlassCard(
+                onLiquid: true,
+                padding: const EdgeInsets.symmetric(vertical: 12),
+                onTap: () => Navigator.push(context, MaterialPageRoute(builder: (_) => tools[i].$3)),
+                child: Column(
+                  children: [
+                    Icon(tools[i].$1, color: Colors.white),
+                    const SizedBox(height: 6),
+                    Text(tools[i].$2, maxLines: 1, overflow: TextOverflow.ellipsis, style: const TextStyle(color: Colors.white, fontWeight: FontWeight.w700, fontSize: 12)),
+                  ],
+                ),
+              ),
+            ),
+          ),
+        ],
+      ],
+    );
+  }
+}
+
+class _SheetTitle extends StatelessWidget {
+  final String title;
+  final String? subtitle;
+  final IconData? icon;
+  final String? iconLabel;
+  final VoidCallback? onTap;
+
+  const _SheetTitle({required this.title, this.subtitle, this.icon, this.iconLabel, this.onTap});
+
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 16),
+      child: Row(
+        children: [
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(title, style: const TextStyle(color: Colors.white, fontSize: 22, fontWeight: FontWeight.w800)),
+                if (subtitle != null) Text(subtitle!, style: TextStyle(color: Colors.white.withValues(alpha: 0.8), fontSize: 12.5, fontWeight: FontWeight.w500)),
+              ],
+            ),
+          ),
+          if (icon != null) Tooltip(message: iconLabel ?? '', child: GlassIconButton(icon: icon!, onTap: onTap, size: 40)),
+        ],
+      ),
+    );
+  }
+}
+
+class _SectionLabel extends StatelessWidget {
+  final String label;
+  final String? action;
+  final VoidCallback? onAction;
+
+  const _SectionLabel({required this.label, this.action, this.onAction});
+
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 10, left: 2),
+      child: Row(
+        children: [
+          Expanded(
+            child: Text(label.toUpperCase(), style: TextStyle(color: Colors.white.withValues(alpha: 0.85), fontSize: 12, fontWeight: FontWeight.w800, letterSpacing: 1.2)),
+          ),
+          if (action != null)
+            GestureDetector(
+              onTap: onAction,
+              child: Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 4),
+                child: Row(
+                  children: [
+                    Text(action!, style: const TextStyle(color: Colors.white, fontSize: 12.5, fontWeight: FontWeight.w800)),
+                    const Icon(Icons.chevron_right_rounded, color: Colors.white, size: 18),
+                  ],
+                ),
+              ),
+            ),
+        ],
+      ),
+    );
+  }
+}
+
+class _EmptyRow extends StatelessWidget {
+  final IconData icon;
+  final String text;
+  final VoidCallback onTap;
+
+  const _EmptyRow({required this.icon, required this.text, required this.onTap});
+
+  @override
+  Widget build(BuildContext context) {
+    return GlassCard(
+      onLiquid: true,
       onTap: onTap,
-      borderRadius: BorderRadius.circular(18),
-      child: Container(
-        padding: const EdgeInsets.all(10),
-        decoration: BoxDecoration(
-          color: isDark ? const Color(0xFF1E293B) : Colors.white,
-          borderRadius: BorderRadius.circular(18),
-          border: Border.all(color: color.withValues(alpha: 0.2)),
-        ),
-        child: Column(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            Icon(icon, color: color, size: 26),
-            const SizedBox(height: 6),
-            Text(label, style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w600), textAlign: TextAlign.center),
-          ],
-        ),
+      margin: const EdgeInsets.only(bottom: 10),
+      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 14),
+      child: Row(
+        children: [
+          Icon(icon, size: 20),
+          const SizedBox(width: 12),
+          Expanded(child: Text(text, style: const TextStyle(fontWeight: FontWeight.w700, fontSize: 13.5))),
+          const Icon(Icons.chevron_right_rounded, size: 20),
+        ],
+      ),
+    );
+  }
+}
+
+class _DashHabitCard extends StatelessWidget {
+  final Habit habit;
+
+  const _DashHabitCard({required this.habit});
+
+  @override
+  Widget build(BuildContext context) {
+    final done = habit.isCompletedToday;
+    return GlassCard(
+      onLiquid: true,
+      highlighted: done,
+      margin: const EdgeInsets.only(bottom: 10),
+      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+      onTap: () => toggleHabitWithMilestone(context, habit),
+      child: Row(
+        children: [
+          AnimatedContainer(
+            duration: const Duration(milliseconds: 320),
+            curve: Curves.easeOutBack,
+            width: 40,
+            height: 40,
+            decoration: BoxDecoration(shape: BoxShape.circle, color: done ? AppColors.navy : Colors.white.withValues(alpha: 0.25)),
+            child: AnimatedSwitcher(
+              duration: const Duration(milliseconds: 260),
+              transitionBuilder: (child, a) => ScaleTransition(scale: a, child: child),
+              child: Icon(done ? Icons.check_rounded : habitIcon(habit.category), key: ValueKey(done), size: 20),
+            ),
+          ),
+          const SizedBox(width: 12),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(habit.title, style: const TextStyle(fontSize: 15, fontWeight: FontWeight.w800)),
+                Text(done ? 'Done today' : 'Tap when done', style: TextStyle(fontSize: 11.5, color: Colors.white.withValues(alpha: 0.75))),
+              ],
+            ),
+          ),
+          Text('🔥 ${habit.streak}d', style: const TextStyle(fontSize: 12.5, fontWeight: FontWeight.w700)),
+        ],
+      ),
+    );
+  }
+}
+
+class _DashTaskRow extends StatelessWidget {
+  final Task task;
+
+  const _DashTaskRow({super.key, required this.task});
+
+  @override
+  Widget build(BuildContext context) {
+    final provider = Provider.of<TaskProvider>(context, listen: false);
+    return GlassCard(
+      onLiquid: true,
+      margin: const EdgeInsets.only(bottom: 10),
+      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+      onTap: () => provider.toggleTaskStatus(task.id),
+      child: Row(
+        children: [
+          Container(
+            width: 26,
+            height: 26,
+            decoration: BoxDecoration(shape: BoxShape.circle, border: Border.all(color: Colors.white, width: 2)),
+          ),
+          const SizedBox(width: 12),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(task.title, style: const TextStyle(fontSize: 14.5, fontWeight: FontWeight.w700)),
+                if (task.description.isNotEmpty)
+                  Text(task.description, style: TextStyle(fontSize: 12, color: Colors.white.withValues(alpha: 0.75)), maxLines: 1, overflow: TextOverflow.ellipsis),
+              ],
+            ),
+          ),
+          GlassPill(text: task.priority, onLiquid: true),
+        ],
+      ),
+    );
+  }
+}
+
+class _DashGoalRow extends StatelessWidget {
+  final Goal goal;
+  final bool checked;
+
+  const _DashGoalRow({super.key, required this.goal, required this.checked});
+
+  @override
+  Widget build(BuildContext context) {
+    return GlassCard(
+      onLiquid: true,
+      highlighted: checked,
+      margin: const EdgeInsets.only(bottom: 10),
+      padding: const EdgeInsets.fromLTRB(14, 12, 10, 12),
+      child: Row(
+        children: [
+          const Icon(Icons.flag_rounded, size: 22),
+          const SizedBox(width: 12),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(goal.title, style: const TextStyle(fontSize: 14.5, fontWeight: FontWeight.w700)),
+                const SizedBox(height: 6),
+                ClipRRect(
+                  borderRadius: BorderRadius.circular(4),
+                  child: LinearProgressIndicator(
+                    value: goal.progress.clamp(0.0, 1.0),
+                    minHeight: 5,
+                    color: AppColors.pink,
+                    backgroundColor: Colors.white.withValues(alpha: 0.25),
+                  ),
+                ),
+              ],
+            ),
+          ),
+          const SizedBox(width: 12),
+          Pressable(
+            onTap: () => checkInGoal(context, goal),
+            child: AnimatedContainer(
+              duration: const Duration(milliseconds: 250),
+              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+              decoration: BoxDecoration(
+                color: checked ? Colors.white : Colors.white.withValues(alpha: 0.2),
+                borderRadius: BorderRadius.circular(14),
+                border: Border.all(color: Colors.white.withValues(alpha: 0.6)),
+              ),
+              child: Text(
+                checked ? '✓ Done' : 'Worked on it',
+                style: TextStyle(fontSize: 12, fontWeight: FontWeight.w800, color: checked ? AppColors.royal : Colors.white),
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _GradientBar extends StatelessWidget {
+  final double value;
+  final Color track;
+
+  const _GradientBar({required this.value, required this.track});
+
+  @override
+  Widget build(BuildContext context) {
+    return LayoutBuilder(
+      builder: (context, c) => Stack(
+        children: [
+          Container(height: 7, decoration: BoxDecoration(color: track, borderRadius: BorderRadius.circular(7))),
+          TweenAnimationBuilder<double>(
+            tween: Tween(begin: 0, end: value.clamp(0.0, 1.0)),
+            duration: const Duration(milliseconds: 1000),
+            curve: Curves.easeOutCubic,
+            builder: (context, v, _) => Container(
+              height: 7,
+              width: c.maxWidth * v,
+              decoration: BoxDecoration(gradient: AppColors.primaryGradient, borderRadius: BorderRadius.circular(7)),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+/// Monday-to-Sunday completion bars for the current week.
+class _WeeklyProgressCard extends StatelessWidget {
+  final VoidCallback onTap;
+
+  const _WeeklyProgressCard({required this.onTap});
+
+  @override
+  Widget build(BuildContext context) {
+    final week = ProgressHistory.thisWeek();
+    final todayIndex = DateTime.now().weekday - 1;
+    final recorded = week.whereType<double>().toList();
+    final average = recorded.isEmpty ? 0.0 : recorded.reduce((a, b) => a + b) / recorded.length;
+    final best = recorded.isEmpty ? -1 : week.indexOf(recorded.reduce((a, b) => a > b ? a : b));
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final textTheme = Theme.of(context).textTheme;
+    const labels = ['M', 'T', 'W', 'T', 'F', 'S', 'S'];
+    const dayNames = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday'];
+
+    return GlassCard(
+      onTap: onTap,
+      padding: const EdgeInsets.fromLTRB(16, 14, 16, 12),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          Row(
+            children: [
+              Expanded(child: Text('This week', style: textTheme.titleMedium?.copyWith(fontSize: 16))),
+              GlassPill(text: '${(average * 100).round()}% average', color: AppColors.accentOn(context)),
+            ],
+          ),
+          const SizedBox(height: 4),
+          Text(
+            recorded.isEmpty
+                ? 'Your week fills in as you complete things each day.'
+                : best >= 0 && week[best]! > 0
+                    ? 'Best day so far: ${dayNames[best]}'
+                    : 'Complete something today to start your week.',
+            style: textTheme.bodyMedium?.copyWith(fontSize: 12.5),
+          ),
+          const SizedBox(height: 12),
+          SizedBox(
+            height: 92,
+            child: Row(
+              crossAxisAlignment: CrossAxisAlignment.end,
+              children: List.generate(7, (i) {
+                final v = week[i];
+                final isToday = i == todayIndex;
+                return Expanded(
+                  child: Semantics(
+                    label: '${dayNames[i]}: ${v == null ? 'no data' : '${(v * 100).round()} percent'}',
+                    child: Column(
+                      mainAxisAlignment: MainAxisAlignment.end,
+                      children: [
+                        if (v != null)
+                          Text('${(v * 100).round()}', style: textTheme.bodyMedium?.copyWith(fontSize: 10, fontWeight: FontWeight.w700)),
+                        const SizedBox(height: 3),
+                        Container(
+                          width: 18,
+                          height: 58,
+                          alignment: Alignment.bottomCenter,
+                          decoration: BoxDecoration(
+                            color: isDark ? Colors.white.withValues(alpha: 0.08) : const Color(0xFFE9ECF8),
+                            borderRadius: BorderRadius.circular(9),
+                          ),
+                          child: TweenAnimationBuilder<double>(
+                            tween: Tween(begin: 0, end: (v ?? 0).clamp(0.0, 1.0)),
+                            duration: Duration(milliseconds: 700 + i * 80),
+                            curve: Curves.easeOutCubic,
+                            builder: (context, h, _) => Container(
+                              width: 18,
+                              height: 58 * h,
+                              decoration: BoxDecoration(
+                                gradient: LinearGradient(
+                                  colors: isToday ? const [AppColors.pink, AppColors.accent] : const [AppColors.sky, AppColors.royal],
+                                  begin: Alignment.topCenter,
+                                  end: Alignment.bottomCenter,
+                                ),
+                                borderRadius: BorderRadius.circular(9),
+                              ),
+                            ),
+                          ),
+                        ),
+                        const SizedBox(height: 5),
+                        Text(
+                          labels[i],
+                          style: TextStyle(
+                            fontSize: 11.5,
+                            fontWeight: isToday ? FontWeight.w800 : FontWeight.w600,
+                            color: isToday ? AppColors.accentOn(context) : textTheme.bodyMedium?.color,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                );
+              }),
+            ),
+          ),
+        ],
       ),
     );
   }

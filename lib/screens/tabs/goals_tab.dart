@@ -1,300 +1,279 @@
 import 'package:flutter/material.dart';
+import 'package:intl/intl.dart';
+import 'package:provider/provider.dart';
 import '../../models/goal.dart';
+import '../../providers/goal_provider.dart';
+import '../../theme/app_colors.dart';
+import '../../utils/feedback.dart';
 import '../../widgets/common/empty_state.dart';
-import '../../services/hive_service.dart';
+import '../../widgets/illustrations.dart';
+import '../../widgets/liquid/liquid.dart';
 import 'dart:math' as math;
 
-class GoalsTab extends StatefulWidget {
-  const GoalsTab({super.key});
+/// Day options for the goal length slider.
+const _dayOptions = [7, 14, 21, 30, 45, 60, 90, 120, 180, 270, 365];
 
-  @override
-  State<GoalsTab> createState() => _GoalsTabState();
+String _percent(double v) {
+  final p = v * 100;
+  return p == p.roundToDouble() ? '${p.round()}%' : '${p.toStringAsFixed(1)}%';
 }
 
-class _GoalsTabState extends State<GoalsTab> {
-  List<Goal> _goals = [];
+Future<void> showAddGoalSheet(BuildContext context) {
+  final titleController = TextEditingController();
+  final descController = TextEditingController();
+  double slider = _dayOptions.indexOf(30) / (_dayOptions.length - 1);
 
-  @override
-  void initState() {
-    super.initState();
-    _loadGoals();
-  }
+  int daysFor(double v) => _dayOptions[(v * (_dayOptions.length - 1)).round()];
 
-  void _loadGoals() {
-    final user = HiveService.getCurrentUser();
-    setState(() {
-      _goals = HiveService.getGoals(user);
-    });
-  }
-
-  Future<void> _updateProgress(Goal goal, double newProgress) async {
-    final user = HiveService.getCurrentUser();
-    final clampedProgress = double.parse(newProgress.clamp(0.0, 1.0).toStringAsFixed(4));
-
-    final oldProgress = goal.progress;
-    final updatedGoal = goal.copyWith(progress: clampedProgress);
-    await HiveService.saveGoal(updatedGoal, user);
-
-    // Award 100 XP if the goal has just been completed!
-    if (oldProgress < 1.0 && clampedProgress >= 1.0) {
-      await HiveService.addXp(100);
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Goal Completed! Earned +100 XP! 🏆')),
-        );
-      }
-    }
-
-    _loadGoals();
-  }
-
-  Future<void> _deleteGoal(String id) async {
-    final user = HiveService.getCurrentUser();
-    await HiveService.deleteGoal(id, user);
-    _loadGoals();
-  }
-
-  void _showSetProgressDialog(Goal goal) {
-    final controller = TextEditingController(text: (goal.progress * 100).toStringAsFixed(1));
-    showDialog(
-      context: context,
-      builder: (context) {
-        return AlertDialog(
-          title: Text('Set Progress for "${goal.title}"'),
-          content: TextField(
-            controller: controller,
-            keyboardType: const TextInputType.numberWithOptions(decimal: true),
-            decoration: const InputDecoration(
-              labelText: 'Progress Percentage (0 - 100%)',
-              suffixText: '%',
-              border: OutlineInputBorder(),
+  return showLiquidSheet(
+    context: context,
+    title: 'Set New Goal',
+    builder: (sheetContext) => StatefulBuilder(
+      builder: (context, setStateModal) {
+        final days = daysFor(slider);
+        final target = DateTime.now().add(Duration(days: days));
+        return Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            const SheetLabel('What do you want to achieve?'),
+            TextField(controller: titleController, autofocus: true, decoration: const InputDecoration(hintText: 'e.g. Run a 5K, Read 12 books')),
+            const SheetLabel('Why does it matter? (optional)'),
+            TextField(controller: descController, maxLines: 2, decoration: const InputDecoration(hintText: 'A reason keeps you going')),
+            const SheetLabel('How many days do you need?'),
+            BubbleSlider(
+              value: slider,
+              labelBuilder: (v) => '${daysFor(v)} days',
+              onChanged: (v) => setStateModal(() => slider = (v * (_dayOptions.length - 1)).round() / (_dayOptions.length - 1)),
             ),
-          ),
-          actions: [
-            TextButton(
-              onPressed: () => Navigator.pop(context),
-              child: const Text('Cancel'),
+            const SizedBox(height: 8),
+            GlassCard(
+              highlighted: true,
+              padding: const EdgeInsets.all(14),
+              child: Row(
+                children: [
+                  Icon(Icons.info_outline_rounded, color: AppColors.accentOn(context)),
+                  const SizedBox(width: 12),
+                  Expanded(
+                    child: Text(
+                      'Each day you work on it, tap "I worked on this today" and your goal moves ${_percent(1 / days)} closer. '
+                      'Check in every day to finish by ${DateFormat('d MMM yyyy').format(target)}.',
+                      style: const TextStyle(fontSize: 13, height: 1.4, fontWeight: FontWeight.w500),
+                    ),
+                  ),
+                ],
+              ),
             ),
-            ElevatedButton(
-              onPressed: () {
-                final val = double.tryParse(controller.text.trim());
-                if (val != null) {
-                  _updateProgress(goal, val / 100.0);
-                  Navigator.pop(context);
-                }
+            const SizedBox(height: 24),
+            GlowButton(
+              label: 'Save Goal',
+              onPressed: () async {
+                if (titleController.text.trim().isEmpty) return;
+                await Provider.of<GoalProvider>(sheetContext, listen: false).addGoal(
+                  title: titleController.text.trim(),
+                  description: descController.text.trim(),
+                  days: days,
+                );
+                if (sheetContext.mounted) Navigator.pop(sheetContext);
               },
-              style: ElevatedButton.styleFrom(backgroundColor: const Color(0xFFEC4899), foregroundColor: Colors.white),
-              child: const Text('Save'),
             ),
           ],
         );
       },
-    );
-  }
+    ),
+  );
+}
 
-  void _showAddGoalModal() {
-    final titleController = TextEditingController();
-    final descController = TextEditingController();
-
-    showModalBottomSheet(
-      context: context,
-      isScrollControlled: true,
-      shape: const RoundedRectangleBorder(borderRadius: BorderRadius.vertical(top: Radius.circular(24))),
-      builder: (context) {
-        return Padding(
-          padding: EdgeInsets.only(
-            bottom: MediaQuery.of(context).viewInsets.bottom + 24,
-            top: 24,
-            left: 24,
-            right: 24,
-          ),
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Text(
-                'Set New Goal',
-                style: Theme.of(context).textTheme.titleLarge?.copyWith(fontWeight: FontWeight.bold),
-              ),
-              const SizedBox(height: 16),
-              TextField(
-                controller: titleController,
-                decoration: InputDecoration(
-                  labelText: 'Goal Title',
-                  border: OutlineInputBorder(borderRadius: BorderRadius.circular(14)),
-                ),
-              ),
-              const SizedBox(height: 12),
-              TextField(
-                controller: descController,
-                decoration: InputDecoration(
-                  labelText: 'Description',
-                  border: OutlineInputBorder(borderRadius: BorderRadius.circular(14)),
-                ),
-              ),
-              const SizedBox(height: 24),
-              SizedBox(
-                width: double.infinity,
-                height: 52,
-                child: ElevatedButton(
-                  onPressed: () async {
-                    if (titleController.text.trim().isNotEmpty) {
-                      final user = HiveService.getCurrentUser();
-                      final newGoal = Goal(
-                        id: DateTime.now().millisecondsSinceEpoch.toString(),
-                        title: titleController.text.trim(),
-                        description: descController.text.trim(),
-                        category: 'Career',
-                        targetDate: DateTime.now().add(const Duration(days: 30)),
-                        progress: 0.0,
-                      );
-                      await HiveService.saveGoal(newGoal, user);
-                      _loadGoals();
-                      if (context.mounted) Navigator.pop(context);
-                    }
-                  },
-                  style: ElevatedButton.styleFrom(
-                    backgroundColor: const Color(0xFFEC4899),
-                    foregroundColor: Colors.white,
-                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
-                  ),
-                  child: const Text('Save Goal', style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
-                ),
-              ),
-            ],
-          ),
-        );
-      },
-    );
-  }
+/// Goal list as slivers, for the Plan tab's scroll view.
+class GoalsSliver extends StatelessWidget {
+  const GoalsSliver({super.key});
 
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      body: SafeArea(
+    final provider = Provider.of<GoalProvider>(context);
+    final goals = provider.goals;
+
+    if (goals.isEmpty) {
+      return SliverFillRemaining(
+        hasScrollBody: false,
         child: Padding(
-          padding: const EdgeInsets.all(20.0),
-          child: Column(
+          padding: const EdgeInsets.only(bottom: 110),
+          child: EmptyStateWidget(
+            icon: Icons.flag_rounded,
+            illustration: IllustrationKind.goals,
+            title: 'Set your first goal',
+            description: 'Goals are bigger things that take weeks, like "Run a 5K". Choose how many days you need, then check in each day you work on it.',
+            buttonText: 'Add a goal',
+            onButtonPressed: () => showAddGoalSheet(context),
+          ),
+        ),
+      );
+    }
+
+    return SliverPadding(
+      padding: const EdgeInsets.fromLTRB(20, 4, 20, 130),
+      sliver: SliverList(
+        delegate: SliverChildBuilderDelegate(
+          (context, index) {
+            final goal = goals[index];
+            return StaggerIn(key: ValueKey(goal.id), index: index, child: GoalCard(goal: goal));
+          },
+          childCount: goals.length,
+        ),
+      ),
+    );
+  }
+}
+
+/// Checks in on a goal and celebrates when it completes.
+Future<void> checkInGoal(BuildContext context, Goal goal) async {
+  final completed = await Provider.of<GoalProvider>(context, listen: false).toggleCheckIn(goal.id);
+  if (completed && context.mounted) {
+    showInfoSnackBar(context, 'Goal achieved: "${goal.title}"! Earned +100 XP 🏆');
+  }
+}
+
+class GoalCard extends StatelessWidget {
+  final Goal goal;
+
+  const GoalCard({super.key, required this.goal});
+
+  @override
+  Widget build(BuildContext context) {
+    final provider = Provider.of<GoalProvider>(context, listen: false);
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final secondary = Theme.of(context).textTheme.bodyMedium?.color;
+    final accent = AppColors.accentOn(context);
+    final done = goal.progress >= 1.0;
+    final checkedToday = provider.isCheckedInToday(goal);
+    final daysLeft = goal.targetDate.difference(DateTime.now()).inDays;
+
+    return GlassCard(
+      margin: const EdgeInsets.only(bottom: 14),
+      highlighted: done,
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          Row(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              Text(
-                'Long-Term Goals',
-                style: Theme.of(context).textTheme.titleLarge?.copyWith(fontSize: 26, fontWeight: FontWeight.bold),
+              Container(
+                width: 44,
+                height: 44,
+                decoration: BoxDecoration(shape: BoxShape.circle, color: done ? AppColors.royal : accent.withValues(alpha: isDark ? 0.18 : 0.1)),
+                child: Icon(done ? Icons.emoji_events_rounded : Icons.flag_rounded, color: done ? Colors.white : accent, size: 22),
               ),
-              const SizedBox(height: 16),
+              const SizedBox(width: 12),
               Expanded(
-                child: _goals.isEmpty
-                    ? EmptyStateWidget(
-                        icon: Icons.flag_rounded,
-                        title: 'No Goals Set',
-                        description: 'Set ambitious targets and track your long-term progress!',
-                        buttonText: 'Add Goal',
-                        onButtonPressed: _showAddGoalModal,
-                      )
-                    : ListView.builder(
-                        itemCount: _goals.length,
-                        itemBuilder: (context, index) {
-                          final goal = _goals[index];
-                          final percentStr = (goal.progress * 100).toStringAsFixed(2);
-
-                          return Card(
-                            margin: const EdgeInsets.only(bottom: 14),
-                            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(18)),
-                            child: Padding(
-                              padding: const EdgeInsets.all(16.0),
-                              child: Column(
-                                crossAxisAlignment: CrossAxisAlignment.start,
-                                children: [
-                                  Row(
-                                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                                    children: [
-                                      Expanded(
-                                        child: Text(
-                                          goal.title,
-                                          style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
-                                        ),
-                                      ),
-                                      Row(
-                                        children: [
-                                          GestureDetector(
-                                            onTap: () => _showSetProgressDialog(goal),
-                                            child: Container(
-                                              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-                                              decoration: BoxDecoration(
-                                                color: const Color(0xFFEC4899).withValues(alpha: 0.12),
-                                                borderRadius: BorderRadius.circular(8),
-                                              ),
-                                              child: Text(
-                                                '$percentStr%',
-                                                style: const TextStyle(fontWeight: FontWeight.bold, color: Color(0xFFEC4899)),
-                                              ),
-                                            ),
-                                          ),
-                                          IconButton(
-                                            icon: const Icon(Icons.delete_outline_rounded, color: Colors.grey, size: 20),
-                                            onPressed: () => _deleteGoal(goal.id),
-                                          ),
-                                        ],
-                                      ),
-                                    ],
-                                  ),
-                                  if (goal.description.isNotEmpty) ...[
-                                    Text(goal.description, style: const TextStyle(color: Colors.grey, fontSize: 13)),
-                                    const SizedBox(height: 8),
-                                  ],
-                                  const SizedBox(height: 8),
-                                  ClipRRect(
-                                    borderRadius: BorderRadius.circular(8),
-                                    child: LinearProgressIndicator(
-                                      value: math.min(1.0, goal.progress),
-                                      minHeight: 8,
-                                      backgroundColor: Colors.grey.shade200,
-                                      valueColor: const AlwaysStoppedAnimation<Color>(Color(0xFFEC4899)),
-                                    ),
-                                  ),
-                                  const SizedBox(height: 12),
-                                  Row(
-                                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                                    children: [
-                                      Text(
-                                        goal.progress >= 1.0 ? '🎉 Goal Completed!' : 'Click +/- to adjust by 0.25%',
-                                        style: TextStyle(
-                                          fontSize: 12,
-                                          fontWeight: FontWeight.w600,
-                                          color: goal.progress >= 1.0 ? Colors.green : Colors.grey,
-                                        ),
-                                      ),
-                                      Row(
-                                        children: [
-                                          IconButton(
-                                            icon: const Icon(Icons.remove_circle_outline_rounded, color: Color(0xFFEC4899)),
-                                            onPressed: () => _updateProgress(goal, goal.progress - 0.0025), // 0.25%
-                                            tooltip: '-0.25%',
-                                          ),
-                                          IconButton(
-                                            icon: const Icon(Icons.add_circle_outline_rounded, color: Color(0xFFEC4899)),
-                                            onPressed: () => _updateProgress(goal, goal.progress + 0.0025), // 0.25%
-                                            tooltip: '+0.25%',
-                                          ),
-                                        ],
-                                      ),
-                                    ],
-                                  ),
-                                ],
-                              ),
-                            ),
-                          );
-                        },
-                      ),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(goal.title, style: Theme.of(context).textTheme.titleMedium?.copyWith(fontSize: 16)),
+                    const SizedBox(height: 2),
+                    Text(
+                      done
+                          ? 'Achieved in ${goal.checkInCount} check-ins'
+                          : 'Target ${DateFormat('d MMM yyyy').format(goal.targetDate)} · ${daysLeft > 0 ? '$daysLeft days left' : daysLeft == 0 ? 'due today' : 'target date passed'}',
+                      style: TextStyle(fontSize: 11.5, color: secondary, fontWeight: FontWeight.w600),
+                    ),
+                  ],
+                ),
+              ),
+              IconButton(
+                visualDensity: VisualDensity.compact,
+                tooltip: 'Delete goal',
+                icon: Icon(Icons.delete_outline_rounded, color: secondary, size: 20),
+                onPressed: () {
+                  provider.deleteGoal(goal.id);
+                  showUndoSnackBar(context, 'Goal deleted', () => provider.restoreGoal(goal));
+                },
               ),
             ],
           ),
+          if (goal.description.isNotEmpty) ...[
+            const SizedBox(height: 10),
+            Text(goal.description, style: TextStyle(color: secondary, fontSize: 13, height: 1.4)),
+          ],
+          const SizedBox(height: 14),
+          Row(
+            children: [
+              Expanded(child: _ProgressBar(value: goal.progress, track: isDark ? Colors.white.withValues(alpha: 0.14) : const Color(0xFFE3E6F5))),
+              const SizedBox(width: 10),
+              Text(_percent(math.min(1.0, goal.progress)), style: TextStyle(fontWeight: FontWeight.w800, fontSize: 13, color: accent)),
+            ],
+          ),
+          const SizedBox(height: 6),
+          Text(
+            done ? '🎉 Goal achieved! Great work.' : '${goal.checkInsLeft} more check-ins to go · +${_percent(goal.dailyStep)} each day',
+            style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: done ? AppColors.success : secondary),
+          ),
+          if (!done) ...[
+            const SizedBox(height: 14),
+            _CheckInButton(checked: checkedToday, onTap: () => checkInGoal(context, goal)),
+          ],
+        ],
+      ),
+    );
+  }
+}
+
+class _CheckInButton extends StatelessWidget {
+  final bool checked;
+  final VoidCallback onTap;
+
+  const _CheckInButton({required this.checked, required this.onTap});
+
+  @override
+  Widget build(BuildContext context) {
+    if (!checked) return GlowButton(label: 'I worked on this today', icon: Icons.check_rounded, height: 48, onPressed: onTap);
+    return Pressable(
+      onTap: onTap,
+      child: Container(
+        height: 48,
+        alignment: Alignment.center,
+        decoration: BoxDecoration(
+          color: AppColors.success.withValues(alpha: 0.14),
+          borderRadius: BorderRadius.circular(20),
+          border: Border.all(color: AppColors.success.withValues(alpha: 0.5)),
+        ),
+        child: const Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Icon(Icons.check_circle_rounded, color: AppColors.success, size: 20),
+            SizedBox(width: 8),
+            Text('Done for today · tap to undo', style: TextStyle(color: AppColors.success, fontWeight: FontWeight.w800)),
+          ],
         ),
       ),
-      floatingActionButton: FloatingActionButton(
-        onPressed: _showAddGoalModal,
-        backgroundColor: const Color(0xFFEC4899),
-        child: const Icon(Icons.add_rounded, color: Colors.white),
+    );
+  }
+}
+
+class _ProgressBar extends StatelessWidget {
+  final double value;
+  final Color track;
+
+  const _ProgressBar({required this.value, required this.track});
+
+  @override
+  Widget build(BuildContext context) {
+    return LayoutBuilder(
+      builder: (context, c) => Stack(
+        children: [
+          Container(height: 10, decoration: BoxDecoration(color: track, borderRadius: BorderRadius.circular(10))),
+          TweenAnimationBuilder<double>(
+            tween: Tween(begin: 0, end: math.min(1.0, value)),
+            duration: const Duration(milliseconds: 900),
+            curve: Curves.easeOutCubic,
+            builder: (context, v, _) => Container(
+              height: 10,
+              width: c.maxWidth * v,
+              decoration: BoxDecoration(
+                gradient: const LinearGradient(colors: [AppColors.pink, AppColors.lavender, AppColors.royal]),
+                borderRadius: BorderRadius.circular(10),
+              ),
+            ),
+          ),
+        ],
       ),
     );
   }
